@@ -123,6 +123,11 @@ public class LoginForm extends javax.swing.JFrame {
         });
 
         pass.setBorder(new javax.swing.border.LineBorder(new java.awt.Color(153, 153, 153), 1, true));
+        pass.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                passActionPerformed(evt);
+            }
+        });
 
         forgot.setText("Forgot Password?");
         forgot.setBorder(null);
@@ -200,102 +205,169 @@ public class LoginForm extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btn_signinActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_signinActionPerformed
-        String user = userId.getText().trim();
-        String newUSERTYPE = String.valueOf(userType.getSelectedItem());
-        System.out.println("UserID entered: [" + user + "], Length: " + user.length());
+        String userIdText = userId.getText().trim();
+        String password = new String(pass.getPassword());
+        String selectedUserType = userType.getSelectedItem().toString();
 
-        // Verify user ID is not empty
-        if (user.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter UserID!", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        if (!user.matches("\\d{11}")) {
-            JOptionPane.showMessageDialog(this, "UserID must be exactly 11 digits!", "Error", JOptionPane.ERROR_MESSAGE);
+        // Input validation
+        if (userIdText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter your User ID", "Input Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        try {
-            long newID = Long.parseLong(user); // Fixed to use long instead of int
-            boolean authenticated = false;
+        // Validate UserID format (exactly 11 digits)
+        if (!isValidUserId(userIdText)) {
+            JOptionPane.showMessageDialog(this, "User ID must be exactly 11 digits", "Invalid User ID", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            ResultSet rs = dbConnect.stmt.executeQuery("SELECT * FROM ACCOUNT WHERE USERID = " + newID);
+        long userIdLong = Long.parseLong(userIdText);
 
-            if (rs.next()) {
-                String dbPassword = rs.getString("PASSWORD");
-                String dbUserType = rs.getString("USERTYPE");
-
-                if (newUSERTYPE.equals(dbUserType)) {
-                    // For admin users, check password
-                    if (newUSERTYPE.equals("admin")) {
-                        String newPASS = String.valueOf(pass.getPassword());
-                        if (newPASS.isEmpty()) {
-                            JOptionPane.showMessageDialog(this, "Admin users must enter a password!", "Error", JOptionPane.ERROR_MESSAGE);
-                            return;
-                        }
-
-                        if (newPASS.equals(dbPassword)) {
-                            authenticated = true;
-                        }
-                    } else {
-                        // For regular users, no password check needed
-                        authenticated = true;
-                    }
-                }
-
-                if (authenticated) {
-                    if (newUSERTYPE.equals("admin")) {
-                        JOptionPane.showMessageDialog(this, "Admin login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                        // Open admin form
-                        // new AdminForm().setVisible(true);
-                        this.dispose();
-                        new Library_Admin().setVisible(true);
-                    } else {
-                        JOptionPane.showMessageDialog(this, "User login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                        // Open user form
-                        new Library_User().setVisible(true);
-                        this.dispose();
-                    }
-                } else {
-                    if (newUSERTYPE.equals("admin")) {
-                        JOptionPane.showMessageDialog(this, "Incorrect admin password!", "Error", JOptionPane.ERROR_MESSAGE);
-                        pass.setText("");
-                    } else {
-                        JOptionPane.showMessageDialog(this, "User account not found or incorrect user type!", "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
+        // Handle different login types
+        if (selectedUserType.equals("user")) {
+            // User login - requires only UserID
+            if (authenticateUser(userIdLong)) {
+                JOptionPane.showMessageDialog(this, "User login successful!", "Login Success", JOptionPane.INFORMATION_MESSAGE);
+                // TODO: Open user dashboard/main form
+                // new UserDashboard(userIdLong).setVisible(true);
+                new Library_User().setVisible(true);
+                this.dispose();
             } else {
-                JOptionPane.showMessageDialog(this, "UserID not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "User ID not found in the system", "Login Failed", JOptionPane.ERROR_MESSAGE);
+            }
+        } else if (selectedUserType.equals("admin")) {
+            // Admin login - requires AdminID and password
+            if (password.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter your password for admin login", "Input Error", JOptionPane.WARNING_MESSAGE);
+                return;
             }
 
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "UserID must be a number!", "Error", JOptionPane.ERROR_MESSAGE);
-            userId.setText("");
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Database error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            if (authenticateAdmin(userIdLong, password)) {
+                JOptionPane.showMessageDialog(this, "Admin login successful!", "Login Success", JOptionPane.INFORMATION_MESSAGE);
+                // TODO: Open admin dashboard/main form
+                // new AdminDashboard(userIdLong).setVisible(true);
+                new Library_Admin().setVisible(true);
+                this.dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Invalid admin credentials", "Login Failed", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }//GEN-LAST:event_btn_signinActionPerformed
+    private boolean isValidUserId(String userId) {
+        if (userId == null || userId.length() != 11) {
+            return false;
+        }
 
+        // Check if all characters are digits
+        for (char c : userId.toCharArray()) {
+            if (!Character.isDigit(c)) {
+                return false;
+            }
+        }
+
+        // Additional check for range constraint from database
+        long id = Long.parseLong(userId);
+        return id >= 10000000000L && id <= 99999999999L;
+    }
+
+    // Authenticate regular user (Students/Faculty)
+    private boolean authenticateUser(long userId) {
+        try {
+            String sql = "SELECT UserID, Username, UserType FROM Users WHERE UserID = ?";
+            PreparedStatement pstmt = dbConnect.con.prepareStatement(sql);
+            pstmt.setLong(1, userId);
+
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                // User found - store user info for session if needed
+                String username = rs.getString("Username");
+                String userTypeFromDB = rs.getString("UserType");
+
+                System.out.println("User authenticated: " + username + " (" + userTypeFromDB + ")");
+                rs.close();
+                pstmt.close();
+                return true;
+            }
+
+            rs.close();
+            pstmt.close();
+            return false;
+
+        } catch (SQLException ex) {
+            System.err.println("Error during user authentication: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Database error during authentication", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+
+    // Authenticate admin user
+    private boolean authenticateAdmin(long adminId, String password) {
+        try {
+            // Query to get admin details including password
+            String sql = "SELECT AdminID, AdminName, Department, Password FROM Admins WHERE AdminID = ?";
+            PreparedStatement pstmt = dbConnect.con.prepareStatement(sql);
+            pstmt.setLong(1, adminId);
+
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                // Admin found - check password
+                String storedPassword = rs.getString("Password");
+
+                // Compare the entered password with stored password
+                // Note: In production, you should use proper password hashing (bcrypt, etc.)
+                if (password.equals(storedPassword)) {
+                    String adminName = rs.getString("AdminName");
+                    String department = rs.getString("Department");
+
+                    System.out.println("Admin authenticated: " + adminName + " (" + department + ")");
+                    rs.close();
+                    pstmt.close();
+                    return true;
+                } else {
+                    System.out.println("Password mismatch for AdminID: " + adminId);
+                }
+            } else {
+                System.out.println("Admin not found with ID: " + adminId);
+            }
+
+            rs.close();
+            pstmt.close();
+            return false;
+
+        } catch (SQLException ex) {
+            System.err.println("Error during admin authentication: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Database error during authentication", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
     private void forgotActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_forgotActionPerformed
         new ForgotPassword().setVisible(true);
         this.dispose();
     }//GEN-LAST:event_forgotActionPerformed
+
+    private void passActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_passActionPerformed
+        btn_signinActionPerformed(evt);
+    }//GEN-LAST:event_passActionPerformed
     private void setupUserTypeListener() {
-        userType.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                String selectedType = userType.getSelectedItem().toString();
-                if (selectedType.equals("admin")) {
-                    // Show password field and label for admin
-                    jLabel7.setVisible(true);
-                    pass.setVisible(true);
-                } else {
-                    // Hide password field and label for regular users
-                    jLabel7.setVisible(false);
-                    pass.setVisible(false);
-                    // Clear any password that might have been entered
-                    pass.setText("");
-                }
+        userType.addActionListener(e -> {
+            String selected = userType.getSelectedItem().toString();
+            if (selected.equals("user")) {
+                // For user login, password is not required
+                pass.setEnabled(false);
+                pass.setText("");
+                jLabel7.setEnabled(false);
+            } else {
+                // For admin login, password is required
+                pass.setEnabled(true);
+                jLabel7.setEnabled(true);
             }
         });
+
+        // Set initial state
+        pass.setEnabled(false);
+        jLabel7.setEnabled(false);
     }
 
     /**

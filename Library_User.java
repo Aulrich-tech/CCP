@@ -19,29 +19,52 @@ public class Library_User extends javax.swing.JFrame {
     }
 
     private void loadBooks() {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
-                "SELECT C.BOOKID, C.BOOKTITLE, C.AUTHOR, G.GENRENAME, C.BOOKYR, S.STOCK " +
-                "FROM CATALOG C " +
-                "LEFT JOIN GENRES G ON C.GENRE = G.GENREID " +
-                "LEFT JOIN STOCK S ON C.BOOKID = S.BOOKID")) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
+                "SELECT BookCode, BookTitle, Author,BookYear, Quantity, AvailableQuantity "
+                + "FROM Books ORDER BY BookCode")) {
 
-            // Make sure your table model has the required columns including "Available"
+            // Make sure your table model has the required columns
             DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
             model.setRowCount(0);
 
             while (rs.next()) {
                 model.addRow(new Object[]{
-                    rs.getString("BOOKID"),
-                    rs.getString("BOOKTITLE"),
-                    rs.getString("AUTHOR"),
-                    rs.getString("GENRENAME"),
-                    rs.getInt("BOOKYR"),
-                    rs.getInt("STOCK") // Add stock information
+                    rs.getString("BookCode"),
+                    rs.getString("BookTitle"),
+                    rs.getString("Author"),
+                    rs.getInt("BookYear"),
+                    rs.getInt("AvailableQuantity") + "/" + rs.getInt("Quantity") // Show available/total
                 });
             }
 
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Load Books Error: " + e.getMessage());
+        }
+    }
+
+    private void loadUsers() {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
+                "SELECT UserID, Username, UserType, Course, Department, ContactNumber, Email "
+                + "FROM Users ORDER BY UserID")) {
+
+            // Assuming you have a users table - adjust table model as needed
+            DefaultTableModel model = (DefaultTableModel) tbl_users.getModel(); // You'll need this table
+            model.setRowCount(0);
+
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getLong("UserID"),
+                    rs.getString("Username"),
+                    rs.getString("UserType"),
+                    rs.getString("Course") != null ? rs.getString("Course") : "N/A",
+                    rs.getString("Department"),
+                    rs.getString("ContactNumber") != null ? rs.getString("ContactNumber") : "N/A",
+                    rs.getString("Email")
+                });
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Load Users Error: " + e.getMessage());
         }
     }
 
@@ -61,72 +84,101 @@ public class Library_User extends javax.swing.JFrame {
         }
 
         String fieldLabel = cmb_searchBy.getSelectedItem().toString();
-        int fieldIndex;
         String columnName;
 
         switch (fieldLabel) {
-            case "Book ID":
-                fieldIndex = 0;
-                columnName = "bookid";
+            case "Book Code":
+                columnName = "BookCode";
                 break;
             case "Title":
-                fieldIndex = 1;
-                columnName = "booktitle";
+                columnName = "BookTitle";
                 break;
             case "Author":
-                fieldIndex = 2;
-                columnName = "author";
+                columnName = "Author";
                 break;
-            case "Genre":
-                fieldIndex = 3;
-                columnName = "genre";
-                break;
-            case "Yr":
-                fieldIndex = 4;
-                columnName = "bookyr";
+            case "Year":
+                columnName = "BookYear";
                 break;
             default:
-                fieldIndex = 1;
-                columnName = "booktitle";
+                columnName = "BookTitle";
                 break;
         }
 
         ArrayList<String[]> filtered = new ArrayList<>();
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252");
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
 
             String sql;
-            if (columnName.equals("bookyr") || columnName.equals("bookid")) {
-                // Handle numeric fields - convert to string for LIKE comparison
-                sql = "SELECT * FROM CATALOG WHERE CAST(" + columnName + " AS CHAR(20)) LIKE ?";
+            PreparedStatement stmt;
+
+            if (columnName.equals("BookYear")) {
+                // Handle numeric field - convert to string for LIKE comparison
+                sql = "SELECT BookCode, BookTitle, Author,BookYear, Quantity, AvailableQuantity "
+                        + "FROM Books WHERE CAST(" + columnName + " AS VARCHAR(20)) LIKE ?";
             } else {
-                // Regular string fields
-                sql = "SELECT * FROM CATALOG WHERE LOWER(" + columnName + ") LIKE ?";
+                // Regular string fields - use UPPER for case-insensitive search in Derby
+                sql = "SELECT BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity "
+                        + "FROM Books WHERE UPPER(" + columnName + ") LIKE UPPER(?)";
             }
 
-            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt = conn.prepareStatement(sql);
             stmt.setString(1, "%" + keyword + "%");
 
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                String bookId = rs.getString("bookid");
-                String title = rs.getString("booktitle");
-                String author = rs.getString("author");
-                String genre = rs.getString("genre");
-                String yr = String.valueOf(rs.getInt("bookyr"));
-                filtered.add(new String[]{bookId, title, author, genre, yr});
-            }
+                String bookCode = rs.getString("BookCode");
+                String title = rs.getString("BookTitle");
+                String author = rs.getString("Author");
+                String year = String.valueOf(rs.getInt("BookYear"));
+                String availability = rs.getInt("AvailableQuantity") + "/" + rs.getInt("Quantity");
 
-            rs.close();
-            stmt.close();
-            conn.close();
+                filtered.add(new String[]{bookCode, title, author, year, availability});
+            }
 
             refreshTable(filtered);
 
         } catch (SQLException e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error searching books in the database.");
+            JOptionPane.showMessageDialog(null, "Error searching books in the database: " + e.getMessage());
         }
+    }
+
+    private void showDeweyInfo() {
+        JDialog dialog = new JDialog(this, "Dewey Decimal Classification", true);
+        dialog.setSize(400, 300);
+        dialog.setLocationRelativeTo(this);
+
+        JTextArea textArea = new JTextArea(
+                "Dewey Decimal Classification (DDC) organizes books by subject:\n\n"
+                + "000-099: Computer Science, Information, and General Works\n"
+                + "100-199: Philosophy and Psychology\n"
+                + "200-299: Religion\n"
+                + "300-399: Social sciences\n"
+                + "400-499: Language\n"
+                + "500-599: Pure sciences (mathematics, physics, chemistry, etc.)\n"
+                + "600-699: Technology and applied sciences\n"
+                + "700-799: Arts and recreation\n"
+                + "800-899: Literature\n"
+                + "900-999: History and geography"
+        );
+        textArea.setWrapStyleWord(true);
+        textArea.setLineWrap(true);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        textArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+
+        // Close button
+        JButton btnClose = new JButton("Close");
+        btnClose.addActionListener(e -> dialog.dispose());
+
+        JPanel bottomPanel = new JPanel();
+        bottomPanel.add(btnClose);
+
+        dialog.add(bottomPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
     }
 
     private void initComponents() {
@@ -141,8 +193,13 @@ public class Library_User extends javax.swing.JFrame {
         JPanel topPanel = new JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        setTitle("Library Book Catalog");
-
+        setTitle("Library Management System");
+        //Dewey Information
+        btn_deweyInfo = new javax.swing.JButton();
+        btn_deweyInfo.setText("What is Dewey Class?");
+        btn_deweyInfo.addActionListener(evt -> showDeweyInfo());
+        JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        infoPanel.add(btn_deweyInfo);
         // Panel customization
         topPanel.setBackground(Color.RED);
         topPanel.setLayout(new BorderLayout());
@@ -153,11 +210,14 @@ public class Library_User extends javax.swing.JFrame {
         topPanel.add(lbl_title, BorderLayout.WEST);
         topPanel.add(btn_logout, BorderLayout.EAST);
 
+        // Updated table model for new schema
         tbl_books = new JTable(new DefaultTableModel(
-                new String[]{"ID", "Title", "Author", "Genre", "Year", "Available"}, 0));
+                new String[]{"Book Code", "Title", "Author", "Year", "Available"}, 0));
         jScrollPane1.setViewportView(tbl_books);
 
-        cmb_searchBy.setModel(new javax.swing.DefaultComboBoxModel<>(new String[]{"Title", "Author", "Genre", "Yr", "Book ID"}));
+        // Updated search options for new schema
+        cmb_searchBy.setModel(new javax.swing.DefaultComboBoxModel<>(
+                new String[]{"Title", "Author", "Year", "Book Code"}));
 
         btn_search.setText("Search");
         btn_search.addActionListener(evt -> searchBooks());
@@ -194,6 +254,10 @@ public class Library_User extends javax.swing.JFrame {
                                 .addContainerGap(60, Short.MAX_VALUE))
                         .addGroup(layout.createSequentialGroup()
                                 .addGap(24)
+                                .addComponent(infoPanel)
+                                .addContainerGap(60, Short.MAX_VALUE))
+                        .addGroup(layout.createSequentialGroup()
+                                .addGap(24)
                                 .addComponent(jScrollPane1)
                                 .addGap(24))
         );
@@ -208,7 +272,9 @@ public class Library_User extends javax.swing.JFrame {
                                         .addComponent(cmb_searchBy, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                                         .addComponent(btn_search)
                                         .addComponent(btn_clear))
-                                .addGap(18)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(infoPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                                 .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 300, Short.MAX_VALUE)
                                 .addGap(24))
         );
@@ -229,4 +295,6 @@ public class Library_User extends javax.swing.JFrame {
     private javax.swing.JLabel lbl_title;
     private javax.swing.JTable tbl_books;
     private javax.swing.JTextField txt_search;
+    private javax.swing.JTable tbl_users;
+    private javax.swing.JButton btn_deweyInfo;
 }

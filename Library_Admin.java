@@ -54,7 +54,6 @@ public class Library_Admin extends JFrame {
                 refreshed.setVisible(true); // Show it    // Re-open a fresh one
                 btn_refresh.setFont(new Font("Segoe UI", Font.PLAIN, 7));
             }
-
         });
 
         JPanel topPanel = new JPanel(new BorderLayout());
@@ -68,33 +67,46 @@ public class Library_Admin extends JFrame {
         rightButtons.add(btn_refresh);
         topPanel.add(rightButtons, BorderLayout.EAST);
 
-        // BOOKS TAB
-        tbl_books = new JTable(new DefaultTableModel(
-                new String[]{"ID", "Title", "Author", "Genre", "Year", "Available"}, 0));
-        btn_addBook = new JButton("Add Book");
-        btn_deleteBook = new JButton("Delete Book");
-        btn_addMultipleBooks = new JButton("Add Multiple Books");
-        btn_deleteMultipleBooks = new JButton("Delete Multiple Books");
+        // BOOKS TAB - Updated for new schema
+        // Corrected table model to match loadBooks() query (7 columns)
+tbl_books = new JTable(new DefaultTableModel(
+        new String[]{"Book Code", "Title", "Author", "Year", "Total Qty", "Available"}, 0));
 
-        btn_addBook.addActionListener(e -> addBookDialog());
-        btn_deleteBook.addActionListener(e -> deleteSelected(tbl_books, "CATALOG", "BOOKID"));
-        btn_addMultipleBooks.addActionListener(e -> addMultipleBooksDialog());
-        btn_deleteMultipleBooks.addActionListener(e -> deleteMultipleBooks());
 
-        JPanel bookPanel = new JPanel(new BorderLayout());
-        bookPanel.add(new JScrollPane(tbl_books), BorderLayout.CENTER);
-        JPanel bookBtnPanel = new JPanel();
-        bookBtnPanel.add(btn_addBook);
-        bookBtnPanel.add(btn_deleteBook);
-        bookBtnPanel.add(btn_addMultipleBooks);
-        bookBtnPanel.add(btn_deleteMultipleBooks);
-        bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
+// Scroll pane for the book table
+JScrollPane scrollPane = new JScrollPane(tbl_books);
 
-        // USERS TAB
+// Buttons for managing books
+btn_addBook = new JButton("Add Book");
+btn_deleteBook = new JButton("Delete Book");
+btn_addMultipleBooks = new JButton("Add Multiple Books");
+btn_deleteMultipleBooks = new JButton("Delete Multiple Books");
+
+// Action listeners
+btn_addBook.addActionListener(e -> addBookDialog());
+btn_deleteBook.addActionListener(e -> deleteSelected(tbl_books, "Books", "BookCode")); // Delete by BookCode from Books table
+btn_addMultipleBooks.addActionListener(e -> addMultipleBooksDialog());
+btn_deleteMultipleBooks.addActionListener(e -> deleteMultipleBooks());
+
+
+// Panel for the buttons
+JPanel bookBtnPanel = new JPanel();
+bookBtnPanel.add(btn_addBook);
+bookBtnPanel.add(btn_deleteBook);
+bookBtnPanel.add(btn_addMultipleBooks);
+bookBtnPanel.add(btn_deleteMultipleBooks);
+
+// Main panel for displaying books and buttons
+JPanel bookPanel = new JPanel(new BorderLayout());
+bookPanel.add(scrollPane, BorderLayout.CENTER);
+bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
+
+        // USERS TAB - Updated for new schema
         lbl_userCount = new JLabel("Total Users: 0");
         lbl_adminCount = new JLabel("Total Admins: 0");
 
-        tbl_users = new JTable(new DefaultTableModel(new String[]{"UserID", "Username", "UserType"}, 0));
+        tbl_users = new JTable(new DefaultTableModel(
+                new String[]{"UserID", "Username", "UserType", "Department", "Email"}, 0)); // Added more columns
         btn_addUser = new JButton("Add User");
         btn_deleteUser = new JButton("Delete User");
         btn_addMultipleUsers = new JButton("Add Multiple Users");
@@ -120,11 +132,13 @@ public class Library_Admin extends JFrame {
 
         userPanel.add(userBtnPanel, BorderLayout.SOUTH);
 
-        // OVERDUE TAB
+        // BORROWING/OVERDUE TAB - Updated for new schema
         tbl_overdue = new JTable(new DefaultTableModel(
-                new String[]{"Borrower ID", "Borrower Name", "Book ID", "Book Title", "Date Borrowed", "Due Date", "Surcharge"}, 0));
+                new String[]{"Borrowing ID", "Book Code", "Book Title", "Borrower ID", "Borrower Name",
+                    "Date Borrowed", "Due Date", "Days Overdue", "Surcharge", "Status"}, 0));
         JPanel overduePanel = new JPanel(new BorderLayout());
         overduePanel.add(new JScrollPane(tbl_overdue), BorderLayout.CENTER);
+
         btn_addBorrowing = new JButton("Add Borrowing");
         btn_returnBook = new JButton("Return Book");
         btn_markOverdue = new JButton("Mark as Overdue");
@@ -134,6 +148,7 @@ public class Library_Admin extends JFrame {
         btn_addBorrowing.addActionListener(e -> addBorrowingDialog());
         btn_returnBook.addActionListener(e -> returnBookDialog());
         btn_markOverdue.addActionListener(e -> markAsOverdueDialog());
+
         JPanel borrowingBtnPanel = new JPanel();
         borrowingBtnPanel.add(btn_addBorrowing);
         borrowingBtnPanel.add(btn_returnBook);
@@ -141,55 +156,36 @@ public class Library_Admin extends JFrame {
         borrowingBtnPanel.add(btn_markMultipleOverdue);
         overduePanel.add(borrowingBtnPanel, BorderLayout.SOUTH);
 
+        // ARCHIVED BOOKS TAB - Updated for new schema
+        tbl_archived = new JTable(new DefaultTableModel(
+                new String[]{"Archive ID", "Original Book Code", "Title", "Author",
+                    "Year", "Archived Quantity", "Archive Reason", "Admin Name", "Archive Date"}, 0));
+        JPanel archivePanel = new JPanel(new BorderLayout());
+        archivePanel.add(new JScrollPane(tbl_archived), BorderLayout.CENTER);
+
         // Tabs
         tabbedPane = new JTabbedPane();
         tabbedPane.addTab("CATALOG", bookPanel);
         tabbedPane.addTab("ACCOUNT", userPanel);
         tabbedPane.addTab("BORROWED", overduePanel);
+        tabbedPane.addTab("HISTORY", archivePanel);
 
         add(topPanel, BorderLayout.NORTH);
         add(tabbedPane, BorderLayout.CENTER);
         setSize(800, 500);
 
-        tbl_archived = new JTable(new DefaultTableModel(
-                new String[]{"Book ID", "Title", "Author", "Genre", "Year", "Deleted At"}, 0));
-
-        JPanel archivePanel = new JPanel(new BorderLayout());
-        archivePanel.add(new JScrollPane(tbl_archived), BorderLayout.CENTER);
-
-        tabbedPane.addTab("HISTORY", archivePanel);
         loadArchivedBooks();
-    }
-
-    private void loadArchivedBooks() {
-        DefaultTableModel model = (DefaultTableModel) tbl_archived.getModel();
-        model.setRowCount(0);
-
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT * FROM archived_books")) {
-
-            while (rs.next()) {
-                model.addRow(new Object[]{
-                    rs.getString("BOOKID"),
-                    rs.getString("BOOKTITLE"),
-                    rs.getString("AUTHOR"),
-                    rs.getString("GENRENAME"),
-                    rs.getInt("BOOKYR"),
-                    rs.getTimestamp("DELETED_AT")
-                });
-            }
-
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading archive: " + e.getMessage());
-        }
     }
 
     private void addBorrowingDialog() {
         // Create fields for the dialog
-        JTextField customerIDField = new JTextField(10);
-        JTextField customerNameField = new JTextField(20);
+        JTextField borrowerIDField = new JTextField(15);
+        JTextField borrowerNameField = new JTextField(20);
         JTextField contactNoField = new JTextField(15);
         JTextField emailField = new JTextField(20);
-        JTextField bookIDField = new JTextField(10);
+        JTextField bookCodeField = new JTextField(10);
+        JTextField bookTitleField = new JTextField(25);
+        JComboBox<String> borrowerTypeCombo = new JComboBox<>(new String[]{"Student", "Faculty"});
 
         // Create date fields
         JSpinner borrowedDateSpinner = new JSpinner(new SpinnerDateModel());
@@ -198,7 +194,7 @@ public class Library_Admin extends JFrame {
         // Set current date
         borrowedDateSpinner.setValue(new java.util.Date());
 
-        // Set default due date (7 days from today)
+        // Set default due date (7 days from today for Faculty, 3 days for Student)
         Calendar calendar = Calendar.getInstance();
         calendar.add(Calendar.DAY_OF_MONTH, 7);
         dueDateSpinner.setValue(calendar.getTime());
@@ -209,20 +205,39 @@ public class Library_Admin extends JFrame {
         borrowedDateSpinner.setEditor(borrowedEditor);
         dueDateSpinner.setEditor(dueEditor);
 
+        // Update due date based on borrower type
+        borrowerTypeCombo.addActionListener(e -> {
+            Calendar cal = Calendar.getInstance();
+            cal.setTime((Date) borrowedDateSpinner.getValue());
+            if ("Faculty".equals(borrowerTypeCombo.getSelectedItem())) {
+                cal.add(Calendar.DAY_OF_MONTH, 14); // 14 days for faculty
+            } else {
+                cal.add(Calendar.DAY_OF_MONTH, 7);  // 7 days for students
+            }
+            dueDateSpinner.setValue(cal.getTime());
+        });
+
         // Create a book search button
         JButton searchBookBtn = new JButton("Search");
         searchBookBtn.addActionListener(e -> {
-            String searchTerm = JOptionPane.showInputDialog(this, "Enter Book ID or Title:");
+            String searchTerm = JOptionPane.showInputDialog(this, "Enter Book Code or Title:");
             if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-                try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT BOOKID, BOOKTITLE FROM CATALOG WHERE BOOKID = ? OR BOOKTITLE LIKE ?")) {
+                try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT BookCode, BookTitle, Author, AvailableQuantity FROM Books WHERE BookCode = ? OR BookTitle LIKE ?")) {
 
                     stmt.setString(1, searchTerm);
                     stmt.setString(2, "%" + searchTerm + "%");
                     ResultSet rs = stmt.executeQuery();
 
                     if (rs.next()) {
-                        bookIDField.setText(rs.getString("BOOKID"));
+                        bookCodeField.setText(rs.getString("BookCode"));
+                        bookTitleField.setText(rs.getString("BookTitle"));
+
+                        int available = rs.getInt("AvailableQuantity");
+                        if (available <= 0) {
+                            JOptionPane.showMessageDialog(this,
+                                    "Book found but not available (Quantity: " + available + ")");
+                        }
                     } else {
                         JOptionPane.showMessageDialog(this, "No matching book found.");
                     }
@@ -232,58 +247,68 @@ public class Library_Admin extends JFrame {
             }
         });
 
-        // Create customer search button
-        JButton searchCustomerBtn = new JButton("Search");
-        searchCustomerBtn.addActionListener(e -> {
-            String searchTerm = JOptionPane.showInputDialog(this, "Enter Customer ID or Name:");
+        // Create borrower search button
+        JButton searchBorrowerBtn = new JButton("Search");
+        searchBorrowerBtn.addActionListener(e -> {
+            String searchTerm = JOptionPane.showInputDialog(this, "Enter User ID or Username:");
             if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-                try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT customerID, customerName, email, contactNo FROM Borrowed WHERE customerID = ? OR customerName LIKE ? "
-                        + "UNION "
-                        + "SELECT customerID, customerName, email, contactNo FROM Overdue WHERE customerID = ? OR customerName LIKE ?")) {
+                try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT UserID, Username, UserType, Department, ContactNumber, Email FROM Users WHERE UserID = ? OR Username LIKE ?")) {
 
-                    stmt.setString(1, searchTerm);
-                    stmt.setString(2, "%" + searchTerm + "%");
-                    stmt.setString(3, searchTerm);
-                    stmt.setString(4, "%" + searchTerm + "%");
+                    // Try to parse as UserID first
+                    try {
+                        long userID = Long.parseLong(searchTerm);
+                        stmt.setLong(1, userID);
+                        stmt.setString(2, "%" + searchTerm + "%");
+                    } catch (NumberFormatException ex) {
+                        // If not a number, search by username only
+                        stmt.setString(1, "0"); // Invalid UserID to ensure no match
+                        stmt.setString(2, "%" + searchTerm + "%");
+                    }
+
                     ResultSet rs = stmt.executeQuery();
 
                     if (rs.next()) {
-                        customerIDField.setText(rs.getString("customerID"));
-                        customerNameField.setText(rs.getString("customerName"));
-                        emailField.setText(rs.getString("email"));
-                        contactNoField.setText(rs.getString("contactNo"));
+                        borrowerIDField.setText(String.valueOf(rs.getLong("UserID")));
+                        borrowerNameField.setText(rs.getString("Username"));
+                        borrowerTypeCombo.setSelectedItem(rs.getString("UserType"));
+                        contactNoField.setText(rs.getString("ContactNumber"));
+                        emailField.setText(rs.getString("Email"));
                     } else {
-                        JOptionPane.showMessageDialog(this, "No matching customer found.");
+                        JOptionPane.showMessageDialog(this, "No matching user found.");
                     }
                 } catch (SQLException ex) {
-                    JOptionPane.showMessageDialog(this, "Error searching for customer: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(this, "Error searching for user: " + ex.getMessage());
                 }
             }
         });
 
         // Create panel for book search
         JPanel bookSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        bookSearchPanel.add(bookIDField);
+        bookSearchPanel.add(bookCodeField);
         bookSearchPanel.add(searchBookBtn);
 
-        // Create panel for customer search
-        JPanel customerSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        customerSearchPanel.add(customerIDField);
-        customerSearchPanel.add(searchCustomerBtn);
+        // Create panel for borrower search
+        JPanel borrowerSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        borrowerSearchPanel.add(borrowerIDField);
+        borrowerSearchPanel.add(searchBorrowerBtn);
 
         // Create the panel with all fields
         JPanel panel = new JPanel(new GridLayout(0, 2, 5, 5));
         panel.add(new JLabel("Borrower ID:"));
-        panel.add(customerSearchPanel);
+        panel.add(borrowerSearchPanel);
         panel.add(new JLabel("Borrower Name:"));
-        panel.add(customerNameField);
+        panel.add(borrowerNameField);
+        panel.add(new JLabel("Borrower Type:"));
+        panel.add(borrowerTypeCombo);
         panel.add(new JLabel("Email:"));
         panel.add(emailField);
         panel.add(new JLabel("Contact Number:"));
         panel.add(contactNoField);
-        panel.add(new JLabel("Book ID:"));
+        panel.add(new JLabel("Book Code:"));
         panel.add(bookSearchPanel);
+        panel.add(new JLabel("Book Title:"));
+        panel.add(bookTitleField);
         panel.add(new JLabel("Date Borrowed:"));
         panel.add(borrowedDateSpinner);
         panel.add(new JLabel("Due Date:"));
@@ -298,67 +323,107 @@ public class Library_Admin extends JFrame {
 
         if (result == JOptionPane.OK_OPTION) {
             try {
-                int customerID = Integer.parseInt(customerIDField.getText().trim());
-                String customerName = customerNameField.getText().trim();
+                long borrowerID = Long.parseLong(borrowerIDField.getText().trim());
+                String borrowerName = borrowerNameField.getText().trim();
+                String borrowerType = (String) borrowerTypeCombo.getSelectedItem();
                 String email = emailField.getText().trim();
                 String contactNo = contactNoField.getText().trim();
-                String bookID = bookIDField.getText().trim();
+                String bookCode = bookCodeField.getText().trim();
+                String bookTitle = bookTitleField.getText().trim();
 
                 // Convert JSpinner date to java.sql.Date
                 java.sql.Date borrowedDate = new java.sql.Date(((java.util.Date) borrowedDateSpinner.getValue()).getTime());
                 java.sql.Date dueDate = new java.sql.Date(((java.util.Date) dueDateSpinner.getValue()).getTime());
 
                 // Validate inputs
-                if (customerName.isEmpty() || bookID.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Borrower name and Book ID are required.");
+                if (borrowerName.isEmpty() || bookCode.isEmpty() || bookTitle.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Borrower name, Book Code, and Book Title are required.");
                     return;
                 }
 
-                // Check if book is available
-                try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement checkStmt = conn.prepareStatement("SELECT STOCK FROM STOCK WHERE BOOKID = ?")) {
+                // Validate borrower ID length (11 digits)
+                if (borrowerID < 10000000000L || borrowerID > 99999999999L) {
+                    JOptionPane.showMessageDialog(this, "Borrower ID must be exactly 11 digits.");
+                    return;
+                }
 
-                    checkStmt.setString(1, bookID);
-                    ResultSet rs = checkStmt.executeQuery();
+                Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised");
+                conn.setAutoCommit(false); // Start transaction
 
-                    if (rs.next()) {
-                        int stock = rs.getInt("STOCK");
-                        if (stock <= 0) {
+                try {
+                    // Check if book is available
+                    PreparedStatement checkBookStmt = conn.prepareStatement(
+                            "SELECT AvailableQuantity FROM Books WHERE BookCode = ?");
+                    checkBookStmt.setString(1, bookCode);
+                    ResultSet bookRs = checkBookStmt.executeQuery();
+
+                    if (bookRs.next()) {
+                        int availableQty = bookRs.getInt("AvailableQuantity");
+                        if (availableQty <= 0) {
                             JOptionPane.showMessageDialog(this, "This book is not available (out of stock).");
+                            conn.rollback();
                             return;
                         }
                     } else {
-                        JOptionPane.showMessageDialog(this, "Book ID not found in stock.");
+                        JOptionPane.showMessageDialog(this, "Book Code not found.");
+                        conn.rollback();
                         return;
                     }
 
-                    // Insert into Borrowed table
-                    try (PreparedStatement insertStmt = conn.prepareStatement(
-                            "INSERT INTO Borrowed (customerID, customerName, email, contactNo, bookID, dateBorrowed, dueDate) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    // Check if user exists
+                    PreparedStatement checkUserStmt = conn.prepareStatement(
+                            "SELECT UserID FROM Users WHERE UserID = ?");
+                    checkUserStmt.setLong(1, borrowerID);
+                    ResultSet userRs = checkUserStmt.executeQuery();
 
-                        insertStmt.setInt(1, customerID);
-                        insertStmt.setString(2, customerName);
-                        insertStmt.setString(3, email);
-                        insertStmt.setString(4, contactNo);
-                        insertStmt.setString(5, bookID);
-                        insertStmt.setDate(6, borrowedDate);
-                        insertStmt.setDate(7, dueDate);
-
-                        insertStmt.executeUpdate();
-
-                        // Update stock count
-                        try (PreparedStatement updateStmt = conn.prepareStatement(
-                                "UPDATE STOCK SET STOCK = STOCK - 1 WHERE BOOKID = ?")) {
-                            updateStmt.setString(1, bookID);
-                            updateStmt.executeUpdate();
-                        }
-
-                        JOptionPane.showMessageDialog(this, "Borrowing record added successfully!");
-                        loadOverdue(); // Refresh the table
+                    if (!userRs.next()) {
+                        JOptionPane.showMessageDialog(this, "User ID not found. Please register the user first.");
+                        conn.rollback();
+                        return;
                     }
+
+                    // Get admin info (you'll need to pass this or get current admin)
+                    long adminID = 12345678901L; // Replace with actual admin ID
+                    String adminName = "Current Admin"; // Replace with actual admin name
+
+                    // Insert into Borrowings table
+                    PreparedStatement insertStmt = conn.prepareStatement(
+                            "INSERT INTO Borrowings (BookCode, BookTitle, BorrowerID, BorrowerName, BorrowerType, "
+                            + "DateBorrowed, DueDate, AdminID, AdminName, IsReturned) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')");
+
+                    insertStmt.setString(1, bookCode);
+                    insertStmt.setString(2, bookTitle);
+                    insertStmt.setLong(3, borrowerID);
+                    insertStmt.setString(4, borrowerName);
+                    insertStmt.setString(5, borrowerType);
+                    insertStmt.setDate(6, borrowedDate);
+                    insertStmt.setDate(7, dueDate);
+                    insertStmt.setLong(8, adminID);
+                    insertStmt.setString(9, adminName);
+
+                    insertStmt.executeUpdate();
+
+                    // Update available quantity
+                    PreparedStatement updateStmt = conn.prepareStatement(
+                            "UPDATE Books SET AvailableQuantity = AvailableQuantity - 1 WHERE BookCode = ?");
+                    updateStmt.setString(1, bookCode);
+                    updateStmt.executeUpdate();
+
+                    conn.commit(); // Commit transaction
+                    JOptionPane.showMessageDialog(this, "Borrowing record added successfully!");
+                    loadOverdue(); // Refresh the table (you may need to adjust this method name)
+
+                } catch (SQLException ex) {
+                    conn.rollback(); // Rollback on error
+                    throw ex;
+                } finally {
+                    conn.setAutoCommit(true);
+                    conn.close();
                 }
+
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Invalid Customer ID. Please enter a number.");
+                JOptionPane.showMessageDialog(this, "Invalid Borrower ID. Please enter a valid 11-digit number.");
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
             }
@@ -366,97 +431,176 @@ public class Library_Admin extends JFrame {
     }
 
     private void returnBookDialog() {
-        // Ask for customer ID or book ID
-        String input = JOptionPane.showInputDialog(this, "Enter Borrower ID or Book ID:");
+        String input = JOptionPane.showInputDialog(this, "Enter Borrower ID or Book Code:");
         if (input == null || input.trim().isEmpty()) {
             return;
         }
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
-            // Try to find in Borrowed table
-            String query = "SELECT customerID, customerName, bookID FROM Borrowed WHERE customerID = ? OR bookID = ?";
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
+            // First check active borrowings
+            String borrowQuery = "SELECT BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName "
+                    + "FROM Borrowings WHERE (BorrowerID = ? OR BookCode = ?) AND IsReturned = 'N'";
 
-            try (PreparedStatement stmt = conn.prepareStatement(query)) {
-                stmt.setString(1, input);
-                stmt.setString(2, input);
+            try (PreparedStatement stmt = conn.prepareStatement(borrowQuery)) {
+                // Try to parse as Long for BorrowerID, otherwise treat as BookCode
+                Long borrowerID = null;
+                try {
+                    borrowerID = Long.parseLong(input);
+                } catch (NumberFormatException e) {
+                    // Input is not a number, treat as BookCode only
+                }
+
+                if (borrowerID != null) {
+                    stmt.setLong(1, borrowerID);
+                    stmt.setString(2, input);
+                } else {
+                    stmt.setString(1, input); // This won't match BorrowerID but that's ok
+                    stmt.setString(2, input);
+                }
 
                 ResultSet rs = stmt.executeQuery();
 
                 if (rs.next()) {
-                    int customerID = rs.getInt("customerID");
-                    String customerName = rs.getString("customerName");
-                    String bookID = rs.getString("bookID");
+                    int borrowingID = rs.getInt("BorrowingID");
+                    String bookCode = rs.getString("BookCode");
+                    String bookTitle = rs.getString("BookTitle");
+                    long actualBorrowerID = rs.getLong("BorrowerID");
+                    String borrowerName = rs.getString("BorrowerName");
 
                     int confirm = JOptionPane.showConfirmDialog(this,
-                            "Return book for:\nBorrower ID: " + customerID + "\nName: " + customerName + "\nBook ID: " + bookID,
+                            "Return book for:\nBorrower ID: " + actualBorrowerID
+                            + "\nName: " + borrowerName
+                            + "\nBook Code: " + bookCode
+                            + "\nBook Title: " + bookTitle,
                             "Confirm Return", JOptionPane.YES_NO_OPTION);
 
                     if (confirm == JOptionPane.YES_OPTION) {
-                        // Delete from Borrowed
-                        try (PreparedStatement deleteStmt = conn.prepareStatement(
-                                "DELETE FROM Borrowed WHERE customerID = ? AND bookID = ?")) {
+                        // Update borrowing record as returned
+                        try (PreparedStatement updateStmt = conn.prepareStatement(
+                                "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
 
-                            deleteStmt.setInt(1, customerID);
-                            deleteStmt.setString(2, bookID);
-                            deleteStmt.executeUpdate();
+                            updateStmt.setInt(1, borrowingID);
+                            updateStmt.executeUpdate();
 
-                            // Update stock
-                            try (PreparedStatement updateStmt = conn.prepareStatement(
-                                    "UPDATE STOCK SET STOCK = STOCK + 1 WHERE BOOKID = ?")) {
-                                updateStmt.setString(1, bookID);
-                                updateStmt.executeUpdate();
+                            // Update book availability
+                            try (PreparedStatement bookUpdateStmt = conn.prepareStatement(
+                                    "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1 WHERE BookCode = ?")) {
+                                bookUpdateStmt.setString(1, bookCode);
+                                bookUpdateStmt.executeUpdate();
+                            }
+
+                            // Insert into ReturnedBooks table
+                            try (PreparedStatement insertReturnStmt = conn.prepareStatement(
+                                    "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, "
+                                    + "BorrowerName, DateBorrowed, DueDate, DateReturned, DaysOverdue, "
+                                    + "SurchargeAmount, IsSurchargePaid, AdminID, AdminName) "
+                                    + "SELECT BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                    + "DateBorrowed, DueDate, CURRENT_DATE, "
+                                    + "CASE WHEN CURRENT_DATE > DueDate THEN (CURRENT_DATE - DueDate) ELSE 0 END, "
+                                    + "CASE WHEN CURRENT_DATE > DueDate THEN (CURRENT_DATE - DueDate) * 5.00 ELSE 0.00 END, "
+                                    + "'Y', AdminID, AdminName FROM Borrowings WHERE BorrowingID = ?")) {
+
+                                insertReturnStmt.setInt(1, borrowingID);
+                                insertReturnStmt.executeUpdate();
                             }
 
                             JOptionPane.showMessageDialog(this, "Book returned successfully!");
-                            loadOverdue(); // Refresh the table
+                            loadOverdue(); // Refresh your display
                         }
                     }
                 } else {
-                    // Try to find in Overdue table
-                    query = "SELECT customerID, customerName, bookID, surcharge FROM Overdue WHERE customerID = ? OR bookID = ?";
+                    // Check overdue records
+                    String overdueQuery = "SELECT OverdueID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                            + "SurchargeAmount, IsPaid FROM Overdues WHERE (BorrowerID = ? OR BookCode = ?) AND IsPaid = 'N'";
 
-                    try (PreparedStatement overdueStmt = conn.prepareStatement(query)) {
-                        overdueStmt.setString(1, input);
-                        overdueStmt.setString(2, input);
+                    try (PreparedStatement overdueStmt = conn.prepareStatement(overdueQuery)) {
+                        if (borrowerID != null) {
+                            overdueStmt.setLong(1, borrowerID);
+                            overdueStmt.setString(2, input);
+                        } else {
+                            overdueStmt.setString(1, input);
+                            overdueStmt.setString(2, input);
+                        }
 
                         ResultSet overdueRs = overdueStmt.executeQuery();
 
                         if (overdueRs.next()) {
-                            int customerID = overdueRs.getInt("customerID");
-                            String customerName = overdueRs.getString("customerName");
-                            String bookID = overdueRs.getString("bookID");
-                            double surcharge = overdueRs.getDouble("surcharge");
+                            int overdueID = overdueRs.getInt("OverdueID");
+                            String bookCode = overdueRs.getString("BookCode");
+                            String bookTitle = overdueRs.getString("BookTitle");
+                            long actualBorrowerID = overdueRs.getLong("BorrowerID");
+                            String borrowerName = overdueRs.getString("BorrowerName");
+                            double surcharge = overdueRs.getDouble("SurchargeAmount");
 
                             int confirm = JOptionPane.showConfirmDialog(this,
-                                    "Return overdue book for:\nBorrower ID: " + customerID
-                                    + "\nName: " + customerName
-                                    + "\nBook ID: " + bookID
-                                    + "\nSurcharge: ₱" + surcharge,
+                                    "Return overdue book for:\nBorrower ID: " + actualBorrowerID
+                                    + "\nName: " + borrowerName
+                                    + "\nBook Code: " + bookCode
+                                    + "\nBook Title: " + bookTitle
+                                    + "\nSurcharge: ₱" + String.format("%.2f", surcharge),
                                     "Confirm Return", JOptionPane.YES_NO_OPTION);
 
                             if (confirm == JOptionPane.YES_OPTION) {
-                                // Delete from Overdue
-                                try (PreparedStatement deleteStmt = conn.prepareStatement(
-                                        "DELETE FROM Overdue WHERE customerID = ? AND bookID = ?")) {
+                                // Mark overdue as paid
+                                try (PreparedStatement updateOverdueStmt = conn.prepareStatement(
+                                        "UPDATE Overdues SET IsPaid = 'Y' WHERE OverdueID = ?")) {
 
-                                    deleteStmt.setInt(1, customerID);
-                                    deleteStmt.setString(2, bookID);
-                                    deleteStmt.executeUpdate();
+                                    updateOverdueStmt.setInt(1, overdueID);
+                                    updateOverdueStmt.executeUpdate();
 
-                                    // Update stock
-                                    try (PreparedStatement updateStmt = conn.prepareStatement(
-                                            "UPDATE STOCK SET STOCK = STOCK + 1 WHERE BOOKID = ?")) {
-                                        updateStmt.setString(1, bookID);
-                                        updateStmt.executeUpdate();
+                                    // Update book availability
+                                    try (PreparedStatement bookUpdateStmt = conn.prepareStatement(
+                                            "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1 WHERE BookCode = ?")) {
+                                        bookUpdateStmt.setString(1, bookCode);
+                                        bookUpdateStmt.executeUpdate();
+                                    }
+
+                                    // Get the corresponding borrowing record and mark as returned
+                                    try (PreparedStatement getBorrowingStmt = conn.prepareStatement(
+                                            "SELECT BorrowingID FROM Overdues WHERE OverdueID = ?")) {
+                                        getBorrowingStmt.setInt(1, overdueID);
+                                        ResultSet borrowingRs = getBorrowingStmt.executeQuery();
+
+                                        if (borrowingRs.next()) {
+                                            int borrowingID = borrowingRs.getInt("BorrowingID");
+
+                                            // Update borrowing as returned
+                                            try (PreparedStatement updateBorrowingStmt = conn.prepareStatement(
+                                                    "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
+                                                updateBorrowingStmt.setInt(1, borrowingID);
+                                                updateBorrowingStmt.executeUpdate();
+                                            }
+
+                                            // Insert into ReturnedBooks
+                                            try (PreparedStatement insertReturnStmt = conn.prepareStatement(
+                                                    "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, "
+                                                    + "BorrowerName, DateBorrowed, DueDate, DateReturned, DaysOverdue, "
+                                                    + "SurchargeAmount, IsSurchargePaid, AdminID, AdminName) "
+                                                    + "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
+                                                    + "b.DateBorrowed, b.DueDate, CURRENT_DATE, o.DaysOverdue, "
+                                                    + "o.SurchargeAmount, 'Y', b.AdminID, b.AdminName "
+                                                    + "FROM Borrowings b, Overdues o WHERE b.BorrowingID = ? AND o.OverdueID = ?")) {
+
+                                                insertReturnStmt.setInt(1, borrowingID);
+                                                insertReturnStmt.setInt(2, overdueID);
+                                                insertReturnStmt.executeUpdate();
+                                            }
+                                        }
                                     }
 
                                     JOptionPane.showMessageDialog(this,
-                                            "Book returned successfully! Surcharge: ₱" + surcharge);
-                                    loadOverdue(); // Refresh the table
+                                            "Book returned successfully! Surcharge: ₱" + String.format("%.2f", surcharge));
+
+                                    // Display "Paid" confirmation popup
+                                    JOptionPane.showMessageDialog(this,
+                                            "Payment of ₱" + String.format("%.2f", surcharge) + " received.\nStatus: PAID",
+                                            "Surcharge Paid", JOptionPane.INFORMATION_MESSAGE);
+
+                                    loadOverdue();
                                 }
                             }
                         } else {
-                            JOptionPane.showMessageDialog(this, "No borrowing record found for this ID.");
+                            JOptionPane.showMessageDialog(this, "No borrowing record found for this ID or Book Code.");
                         }
                     }
                 }
@@ -467,31 +611,45 @@ public class Library_Admin extends JFrame {
     }
 
     private void markAsOverdueDialog() {
-        // Ask for customer ID or book ID
-        String input = JOptionPane.showInputDialog(this, "Enter Borrower ID");
+        // Ask for borrower ID or book code
+        String input = JOptionPane.showInputDialog(this, "Enter Borrower ID or Book Code:");
         if (input == null || input.trim().isEmpty()) {
             return;
         }
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
-            // Find in Borrowed table
-            String query = "SELECT b.customerID, b.customerName, b.email, b.contactNo, b.bookID, b.dateBorrowed, b.dueDate "
-                    + "FROM Borrowed b WHERE b.customerID = ? OR b.bookID = ?";
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
+            // Find in Borrowings table (only non-returned books)
+            String query = "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
+                    + "b.BorrowerType, b.DateBorrowed, b.DueDate, u.ContactNumber, u.Email "
+                    + "FROM Borrowings b "
+                    + "JOIN Users u ON b.BorrowerID = u.UserID "
+                    + "WHERE b.IsReturned = 'N' AND (b.BorrowerID = ? OR b.BookCode = ?)";
 
             try (PreparedStatement stmt = conn.prepareStatement(query)) {
-                stmt.setString(1, input);
-                stmt.setString(2, input);
+                // Try to parse as BorrowerID first
+                try {
+                    long borrowerID = Long.parseLong(input);
+                    stmt.setLong(1, borrowerID);
+                    stmt.setString(2, input);
+                } catch (NumberFormatException ex) {
+                    // If not a number, search by BookCode only
+                    stmt.setLong(1, 0); // Invalid BorrowerID to ensure no match
+                    stmt.setString(2, input);
+                }
 
                 ResultSet rs = stmt.executeQuery();
 
                 if (rs.next()) {
-                    int customerID = rs.getInt("customerID");
-                    String customerName = rs.getString("customerName");
-                    String email = rs.getString("email");
-                    String contactNo = rs.getString("contactNo");
-                    String bookID = rs.getString("bookID");
-                    java.sql.Date borrowedDate = rs.getDate("dateBorrowed");
-                    java.sql.Date dueDate = rs.getDate("dueDate");
+                    int borrowingID = rs.getInt("BorrowingID");
+                    String bookCode = rs.getString("BookCode");
+                    String bookTitle = rs.getString("BookTitle");
+                    long borrowerID = rs.getLong("BorrowerID");
+                    String borrowerName = rs.getString("BorrowerName");
+                    String borrowerType = rs.getString("BorrowerType");
+                    java.sql.Date borrowedDate = rs.getDate("DateBorrowed");
+                    java.sql.Date dueDate = rs.getDate("DueDate");
+                    String contactNo = rs.getString("ContactNumber");
+                    String email = rs.getString("Email");
 
                     // Calculate number of days overdue
                     long currentTimeMillis = System.currentTimeMillis();
@@ -509,9 +667,10 @@ public class Library_Admin extends JFrame {
                     double surcharge = daysOverdue * 10.0;
 
                     int confirm = JOptionPane.showConfirmDialog(this,
-                            "Mark as overdue:\nBorrower ID: " + customerID
-                            + "\nName: " + customerName
-                            + "\nBook ID: " + bookID
+                            "Mark as overdue:\nBorrower ID: " + borrowerID
+                            + "\nName: " + borrowerName
+                            + "\nBook Code: " + bookCode
+                            + "\nBook Title: " + bookTitle
                             + "\nDays Overdue: " + daysOverdue
                             + "\nSurcharge: ₱" + surcharge,
                             "Confirm Overdue", JOptionPane.YES_NO_OPTION);
@@ -521,34 +680,29 @@ public class Library_Admin extends JFrame {
                         conn.setAutoCommit(false);
 
                         try {
-                            // Insert into Overdue
+                            // Insert into Overdues table
                             try (PreparedStatement insertStmt = conn.prepareStatement(
-                                    "INSERT INTO Overdue (customerID, customerName, email, contactNo, bookID, dateBorrowed, dueDate, surcharge) "
-                                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                                    "INSERT INTO Overdues (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                    + "DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid) "
+                                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {
 
-                                insertStmt.setInt(1, customerID);
-                                insertStmt.setString(2, customerName);
-                                insertStmt.setString(3, email);
-                                insertStmt.setString(4, contactNo);
-                                insertStmt.setString(5, bookID);
+                                insertStmt.setInt(1, borrowingID);
+                                insertStmt.setString(2, bookCode);
+                                insertStmt.setString(3, bookTitle);
+                                insertStmt.setLong(4, borrowerID);
+                                insertStmt.setString(5, borrowerName);
                                 insertStmt.setDate(6, borrowedDate);
                                 insertStmt.setDate(7, dueDate);
-                                insertStmt.setDouble(8, surcharge);
+                                insertStmt.setInt(8, daysOverdue);
+                                insertStmt.setBigDecimal(9, new java.math.BigDecimal(surcharge));
 
                                 insertStmt.executeUpdate();
                             }
 
-                            // Delete from Borrowed
-                            try (PreparedStatement deleteStmt = conn.prepareStatement(
-                                    "DELETE FROM Borrowed WHERE customerID = ? AND bookID = ?")) {
-
-                                deleteStmt.setInt(1, customerID);
-                                deleteStmt.setString(2, bookID);
-                                deleteStmt.executeUpdate();
-                            }
-
+                            // Note: We don't delete from Borrowings table anymore
+                            // The book remains as borrowed but is now also tracked as overdue
                             conn.commit();
-                            JOptionPane.showMessageDialog(this, "Book marked as overdue with surcharge: ₱" + surcharge);
+                            JOptionPane.showMessageDialog(this, "Book marked as overdue with surcharge: ₱" + String.format("%.2f", surcharge));
                             loadOverdue(); // Refresh the table
 
                         } catch (SQLException ex) {
@@ -560,7 +714,7 @@ public class Library_Admin extends JFrame {
                     }
 
                 } else {
-                    JOptionPane.showMessageDialog(this, "No borrowing record found for this ID.");
+                    JOptionPane.showMessageDialog(this, "No active borrowing record found for this ID.");
                 }
             }
         } catch (SQLException ex) {
@@ -571,7 +725,7 @@ public class Library_Admin extends JFrame {
     private void markMultipleOverdueDialog() {
         // Create a multi-select dialog with all currently borrowed books
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"", "Customer ID", "Customer Name", "Book ID", "Book Title", "Date Borrowed", "Due Date", "Days Overdue"}, 0) {
+                new String[]{"", "Borrower ID", "Borrower Name", "Book Code", "Book Title", "Date Borrowed", "Due Date", "Days Overdue"}, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return columnIndex == 0 ? Boolean.class : Object.class;
@@ -583,25 +737,32 @@ public class Library_Admin extends JFrame {
             }
         };
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
             // Get current date
             long currentTimeMillis = System.currentTimeMillis();
             java.sql.Date currentDate = new java.sql.Date(currentTimeMillis);
 
-            // Query borrowed books
-            String query = "SELECT b.customerID, b.customerName, b.email, b.contactNo, b.bookID, "
-                    + "c.BOOKTITLE, b.dateBorrowed, b.dueDate "
-                    + "FROM Borrowed b JOIN CATALOG c ON b.bookID = c.BOOKID";
+            // Query borrowed books that are not returned and not already in overdue
+            String query = "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
+                    + "b.BorrowerType, b.DateBorrowed, b.DueDate, u.ContactNumber, u.Email "
+                    + "FROM Borrowings b "
+                    + "JOIN Users u ON b.BorrowerID = u.UserID "
+                    + "WHERE b.IsReturned = 'N' "
+                    + "AND NOT EXISTS (SELECT 1 FROM Overdues o WHERE o.BorrowingID = b.BorrowingID)";
 
             try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
 
                 while (rs.next()) {
-                    int customerID = rs.getInt("customerID");
-                    String customerName = rs.getString("customerName");
-                    String bookID = rs.getString("bookID");
-                    String bookTitle = rs.getString("BOOKTITLE");
-                    java.sql.Date borrowedDate = rs.getDate("dateBorrowed");
-                    java.sql.Date dueDate = rs.getDate("dueDate");
+                    int borrowingID = rs.getInt("BorrowingID");
+                    String bookCode = rs.getString("BookCode");
+                    String bookTitle = rs.getString("BookTitle");
+                    long borrowerID = rs.getLong("BorrowerID");
+                    String borrowerName = rs.getString("BorrowerName");
+                    String borrowerType = rs.getString("BorrowerType");
+                    java.sql.Date borrowedDate = rs.getDate("DateBorrowed");
+                    java.sql.Date dueDate = rs.getDate("DueDate");
+                    String contactNo = rs.getString("ContactNumber");
+                    String email = rs.getString("Email");
 
                     // Calculate days overdue
                     long diffInMillis = currentDate.getTime() - dueDate.getTime();
@@ -611,13 +772,16 @@ public class Library_Admin extends JFrame {
                     if (daysOverdue > 0) {
                         model.addRow(new Object[]{
                             false, // Checkbox initially unchecked
-                            customerID,
-                            customerName,
-                            bookID,
+                            borrowerID,
+                            borrowerName,
+                            bookCode,
                             bookTitle,
                             borrowedDate,
                             dueDate,
-                            daysOverdue
+                            daysOverdue,
+                            borrowingID, // Hidden column for reference
+                            contactNo, // Hidden column for contact
+                            email // Hidden column for email
                         });
                     }
                 }
@@ -628,9 +792,22 @@ public class Library_Admin extends JFrame {
                     return;
                 }
 
+                // Create table with visible columns only
                 JTable selectionTable = new JTable(model);
+
+                // Hide the extra columns (borrowingID, contactNo, email)
+                selectionTable.getColumnModel().getColumn(8).setMinWidth(0);
+                selectionTable.getColumnModel().getColumn(8).setMaxWidth(0);
+                selectionTable.getColumnModel().getColumn(8).setWidth(0);
+                selectionTable.getColumnModel().getColumn(9).setMinWidth(0);
+                selectionTable.getColumnModel().getColumn(9).setMaxWidth(0);
+                selectionTable.getColumnModel().getColumn(9).setWidth(0);
+                selectionTable.getColumnModel().getColumn(10).setMinWidth(0);
+                selectionTable.getColumnModel().getColumn(10).setMaxWidth(0);
+                selectionTable.getColumnModel().getColumn(10).setWidth(0);
+
                 JScrollPane scrollPane = new JScrollPane(selectionTable);
-                scrollPane.setPreferredSize(new Dimension(700, 300));
+                scrollPane.setPreferredSize(new Dimension(800, 350));
 
                 // Add a "Select All" checkbox
                 JCheckBox selectAll = new JCheckBox("Select All");
@@ -641,8 +818,18 @@ public class Library_Admin extends JFrame {
                     }
                 });
 
+                // Add summary label
+                JLabel summaryLabel = new JLabel("Found " + model.getRowCount() + " overdue books");
+                summaryLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+
                 JPanel panel = new JPanel(new BorderLayout());
-                panel.add(selectAll, BorderLayout.NORTH);
+                panel.add(summaryLabel, BorderLayout.NORTH);
+
+                JPanel topPanel = new JPanel(new BorderLayout());
+                topPanel.add(summaryLabel, BorderLayout.WEST);
+                topPanel.add(selectAll, BorderLayout.EAST);
+
+                panel.add(topPanel, BorderLayout.NORTH);
                 panel.add(scrollPane, BorderLayout.CENTER);
 
                 int result = JOptionPane.showConfirmDialog(this, panel, "Select Books to Mark as Overdue",
@@ -664,8 +851,16 @@ public class Library_Admin extends JFrame {
                         return;
                     }
 
+                    // Calculate total surcharge
+                    double totalSurcharge = 0;
+                    for (int rowIndex : selectedRows) {
+                        int daysOverdue = (int) model.getValueAt(rowIndex, 7);
+                        totalSurcharge += daysOverdue * 10.0;
+                    }
+
                     int confirm = JOptionPane.showConfirmDialog(this,
-                            "Mark " + selectedRows.size() + " books as overdue?",
+                            "Mark " + selectedRows.size() + " books as overdue?\n"
+                            + "Total surcharge: ₱" + String.format("%.2f", totalSurcharge),
                             "Confirm Mark as Overdue", JOptionPane.YES_NO_OPTION);
 
                     if (confirm == JOptionPane.YES_OPTION) {
@@ -674,58 +869,44 @@ public class Library_Admin extends JFrame {
 
                         try {
                             for (int rowIndex : selectedRows) {
-                                int customerID = (int) model.getValueAt(rowIndex, 1);
-                                String bookID = (String) model.getValueAt(rowIndex, 3);
+                                int borrowingID = (int) model.getValueAt(rowIndex, 8); // Hidden column
+                                String bookCode = (String) model.getValueAt(rowIndex, 3);
+                                String bookTitle = (String) model.getValueAt(rowIndex, 4);
+                                long borrowerID = (long) model.getValueAt(rowIndex, 1);
+                                String borrowerName = (String) model.getValueAt(rowIndex, 2);
+                                java.sql.Date borrowedDate = (java.sql.Date) model.getValueAt(rowIndex, 5);
+                                java.sql.Date dueDate = (java.sql.Date) model.getValueAt(rowIndex, 6);
                                 int daysOverdue = (int) model.getValueAt(rowIndex, 7);
+                                String contactNo = (String) model.getValueAt(rowIndex, 9); // Hidden column
+                                String email = (String) model.getValueAt(rowIndex, 10);    // Hidden column
+
                                 double surcharge = daysOverdue * 10.0; // 10 pesos per day
 
-                                // Get additional customer details
-                                String getCustomerQuery = "SELECT email, contactNo FROM Borrowed WHERE customerID = ? AND bookID = ?";
-                                try (PreparedStatement custStmt = conn.prepareStatement(getCustomerQuery)) {
-                                    custStmt.setInt(1, customerID);
-                                    custStmt.setString(2, bookID);
-                                    ResultSet custRs = custStmt.executeQuery();
+                                // Insert into Overdues table
+                                try (PreparedStatement insertStmt = conn.prepareStatement(
+                                        "INSERT INTO Overdues (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                        + "DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid) "
+                                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {
 
-                                    if (custRs.next()) {
-                                        String email = custRs.getString("email");
-                                        String contactNo = custRs.getString("contactNo");
-                                        String customerName = (String) model.getValueAt(rowIndex, 2);
-                                        java.sql.Date borrowedDate = (java.sql.Date) model.getValueAt(rowIndex, 5);
-                                        java.sql.Date dueDate = (java.sql.Date) model.getValueAt(rowIndex, 6);
+                                    insertStmt.setInt(1, borrowingID);
+                                    insertStmt.setString(2, bookCode);
+                                    insertStmt.setString(3, bookTitle);
+                                    insertStmt.setLong(4, borrowerID);
+                                    insertStmt.setString(5, borrowerName);
+                                    insertStmt.setDate(6, borrowedDate);
+                                    insertStmt.setDate(7, dueDate);
+                                    insertStmt.setInt(8, daysOverdue);
+                                    insertStmt.setBigDecimal(9, new java.math.BigDecimal(surcharge));
 
-                                        // Insert into Overdue
-                                        try (PreparedStatement insertStmt = conn.prepareStatement(
-                                                "INSERT INTO Overdue (customerID, customerName, email, contactNo, bookID, dateBorrowed, dueDate, surcharge) "
-                                                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
-
-                                            insertStmt.setInt(1, customerID);
-                                            insertStmt.setString(2, customerName);
-                                            insertStmt.setString(3, email);
-                                            insertStmt.setString(4, contactNo);
-                                            insertStmt.setString(5, bookID);
-                                            insertStmt.setDate(6, borrowedDate);
-                                            insertStmt.setDate(7, dueDate);
-                                            insertStmt.setDouble(8, surcharge);
-
-                                            insertStmt.executeUpdate();
-                                        }
-
-                                        // Delete from Borrowed
-                                        try (PreparedStatement deleteStmt = conn.prepareStatement(
-                                                "DELETE FROM Borrowed WHERE customerID = ? AND bookID = ?")) {
-
-                                            deleteStmt.setInt(1, customerID);
-                                            deleteStmt.setString(2, bookID);
-                                            deleteStmt.executeUpdate();
-
-                                            successCount++;
-                                        }
-                                    }
+                                    insertStmt.executeUpdate();
+                                    successCount++;
                                 }
                             }
 
                             conn.commit();
-                            JOptionPane.showMessageDialog(this, successCount + " books marked as overdue successfully!");
+                            JOptionPane.showMessageDialog(this,
+                                    successCount + " books marked as overdue successfully!\n"
+                                    + "Total surcharge: ₱" + String.format("%.2f", totalSurcharge));
                             loadOverdue(); // Refresh the table
 
                         } catch (SQLException ex) {
@@ -743,45 +924,59 @@ public class Library_Admin extends JFrame {
     }
 
     private void loadBooks() {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
-                "SELECT C.BOOKID, C.BOOKTITLE, C.AUTHOR, G.GENRENAME, C.BOOKYR, S.STOCK "
-                + "FROM CATALOG C "
-                + "LEFT JOIN GENRES G ON C.GENRE = G.GENREID "
-                + "LEFT JOIN STOCK S ON C.BOOKID = S.BOOKID")) {
-
-            DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
-            model.setRowCount(0);
-
-            while (rs.next()) {
-                model.addRow(new Object[]{
-                    rs.getString("BOOKID"),
-                    rs.getString("BOOKTITLE"),
-                    rs.getString("AUTHOR"),
-                    rs.getString("GENRENAME"),
-                    rs.getInt("BOOKYR"),
-                    rs.getInt("STOCK")
-                });
-            }
-
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Load Books Error: " + e.getMessage());
+    try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); 
+         Statement stmt = conn.createStatement(); 
+         ResultSet rs = stmt.executeQuery(
+                "SELECT BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity "
+                + "FROM Books "
+                + "ORDER BY BookCode")) {
+        
+        DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
+        model.setRowCount(0);
+        
+        while (rs.next()) {
+            model.addRow(new Object[]{
+                rs.getString("BookCode"),
+                rs.getString("BookTitle"),
+                rs.getString("Author"),
+                rs.getObject("BookYear"), // Use getObject to handle NULL years properly
+                rs.getInt("Quantity"),
+                rs.getInt("AvailableQuantity")
+            });
         }
+        
+        // Optional: Show count of loaded books
+        int rowCount = model.getRowCount();
+        if (rowCount == 0) {
+            // If no books found, you might want to show a message or placeholder
+            System.out.println("No books found in the database.");
+        }
+        
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(this, 
+            "Error loading books from database: " + e.getMessage(),
+            "Database Error", 
+            JOptionPane.ERROR_MESSAGE);
+        e.printStackTrace(); // For debugging purposes
     }
+}
 
     private void loadUsers() {
-        loadTableData("SELECT USERID, USERNAME, USERTYPE FROM ACCOUNT", tbl_users);
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement()) {
+        // Load user data with updated query for new schema
+        loadTableData("SELECT UserID, Username, UserType, Department, Email FROM Users", tbl_users);
 
-            // Count total users (non-admin)
-            ResultSet rsUsers = stmt.executeQuery("SELECT COUNT(*) FROM ACCOUNT WHERE USERTYPE = 'user'");
-            if (rsUsers.next()) {
-                lbl_userCount.setText("Total Users: " + rsUsers.getInt(1));
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement()) {
+
+            // Count total students
+            ResultSet rsStudents = stmt.executeQuery("SELECT COUNT(*) FROM Users WHERE UserType = 'Student'");
+            if (rsStudents.next()) {
+                lbl_userCount.setText("Total Students: " + rsStudents.getInt(1));
             }
 
-            // Count total admins
-            ResultSet rsAdmins = stmt.executeQuery("SELECT COUNT(*) FROM ACCOUNT WHERE USERTYPE = 'admin'");
-            if (rsAdmins.next()) {
-                lbl_adminCount.setText("Total Admins: " + rsAdmins.getInt(1));
+            // Count total faculty
+            ResultSet rsFaculty = stmt.executeQuery("SELECT COUNT(*) FROM Users WHERE UserType = 'Faculty'");
+            if (rsFaculty.next()) {
+                lbl_adminCount.setText("Total Faculty: " + rsFaculty.getInt(1));
             }
 
         } catch (SQLException e) {
@@ -790,46 +985,58 @@ public class Library_Admin extends JFrame {
     }
 
     private void loadOverdue() {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement()) {
 
             DefaultTableModel model = (DefaultTableModel) tbl_overdue.getModel();
             model.setRowCount(0);
 
-            // Query for borrowed books
-            ResultSet rsBorrowed = stmt.executeQuery(
-                    "SELECT b.customerID, b.customerName, b.bookID, c.BOOKTITLE, b.dateBorrowed, b.dueDate, 0 as surcharge "
-                    + "FROM Borrowed b "
-                    + "JOIN CATALOG c ON b.bookID = c.BOOKID");
+            // Query for active borrowings (not returned)
+            String borrowedQuery
+                    = "SELECT BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                    + "DateBorrowed, DueDate, 0 as DaysOverdue, 0.00 as SurchargeAmount, 'Borrowed' as Status "
+                    + "FROM Borrowings "
+                    + "WHERE IsReturned = 'N'";
+
+            ResultSet rsBorrowed = stmt.executeQuery(borrowedQuery);
 
             // Add borrowed books
             while (rsBorrowed.next()) {
                 model.addRow(new Object[]{
-                    rsBorrowed.getInt("customerID"),
-                    rsBorrowed.getString("customerName"),
-                    rsBorrowed.getString("bookID"),
-                    rsBorrowed.getString("BOOKTITLE"),
-                    rsBorrowed.getDate("dateBorrowed"),
-                    rsBorrowed.getDate("dueDate"),
-                    rsBorrowed.getDouble("surcharge")
+                    rsBorrowed.getInt("BorrowingID"),
+                    rsBorrowed.getString("BookCode"),
+                    rsBorrowed.getString("BookTitle"),
+                    rsBorrowed.getLong("BorrowerID"),
+                    rsBorrowed.getString("BorrowerName"),
+                    rsBorrowed.getDate("DateBorrowed"),
+                    rsBorrowed.getDate("DueDate"),
+                    rsBorrowed.getInt("DaysOverdue"),
+                    rsBorrowed.getBigDecimal("SurchargeAmount"),
+                    rsBorrowed.getString("Status")
                 });
             }
 
             // Query for overdue books
-            ResultSet rsOverdue = stmt.executeQuery(
-                    "SELECT o.customerID, o.customerName, o.bookID, c.BOOKTITLE, o.dateBorrowed, o.dueDate, o.surcharge "
-                    + "FROM Overdue o "
-                    + "JOIN CATALOG c ON o.bookID = c.BOOKID");
+            String overdueQuery
+                    = "SELECT o.OverdueID, o.BookCode, o.BookTitle, o.BorrowerID, o.BorrowerName, "
+                    + "o.DateBorrowed, o.DueDate, o.DaysOverdue, o.SurchargeAmount, "
+                    + "CASE WHEN o.IsPaid = 'Y' THEN 'Paid' ELSE 'Overdue' END as Status "
+                    + "FROM Overdues o";
+
+            ResultSet rsOverdue = stmt.executeQuery(overdueQuery);
 
             // Add overdue books
             while (rsOverdue.next()) {
                 model.addRow(new Object[]{
-                    rsOverdue.getInt("customerID"),
-                    rsOverdue.getString("customerName"),
-                    rsOverdue.getString("bookID"),
-                    rsOverdue.getString("BOOKTITLE"),
-                    rsOverdue.getDate("dateBorrowed"),
-                    rsOverdue.getDate("dueDate"),
-                    rsOverdue.getDouble("surcharge")
+                    rsOverdue.getInt("OverdueID"),
+                    rsOverdue.getString("BookCode"),
+                    rsOverdue.getString("BookTitle"),
+                    rsOverdue.getLong("BorrowerID"),
+                    rsOverdue.getString("BorrowerName"),
+                    rsOverdue.getDate("DateBorrowed"),
+                    rsOverdue.getDate("DueDate"),
+                    rsOverdue.getInt("DaysOverdue"),
+                    rsOverdue.getBigDecimal("SurchargeAmount"),
+                    rsOverdue.getString("Status")
                 });
             }
 
@@ -838,12 +1045,43 @@ public class Library_Admin extends JFrame {
         }
     }
 
+    private void loadArchivedBooks() {
+    try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); 
+         Statement stmt = conn.createStatement(); 
+         ResultSet rs = stmt.executeQuery(
+                "SELECT ArchiveID, OriginalBookCode, BookTitle, Author, "
+                + "BookYear, ArchivedQuantity, ArchiveReason, AdminName, ArchiveDate "
+                + "FROM ArchivedBooks "
+                + "ORDER BY ArchiveDate DESC")) {
+        
+        DefaultTableModel model = (DefaultTableModel) tbl_archived.getModel();
+        model.setRowCount(0);
+        
+        while (rs.next()) {
+            model.addRow(new Object[]{
+                rs.getInt("ArchiveID"),              // Column 0: Archive ID
+                rs.getString("OriginalBookCode"),    // Column 1: Original Book Code
+                rs.getString("BookTitle"),           // Column 2: Title
+                rs.getString("Author"),              // Column 3: Author
+                rs.getObject("BookYear"),            // Column 4: Year
+                rs.getInt("ArchivedQuantity"),       // Column 5: Archived Quantity
+                rs.getString("ArchiveReason"),       // Column 6: Archive Reason
+                rs.getString("AdminName"),           // Column 7: Admin Name (NEW COLUMN)
+                rs.getTimestamp("ArchiveDate")       // Column 8: Archive Date
+            });
+        }
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(this, "Load Archived Books Error: " + e.getMessage());
+    }
+}
     private void loadTableData(String query, JTable table) {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
+
             DefaultTableModel model = (DefaultTableModel) table.getModel();
             model.setRowCount(0);
             ResultSetMetaData meta = rs.getMetaData();
             int cols = meta.getColumnCount();
+
             while (rs.next()) {
                 Object[] row = new Object[cols];
                 for (int i = 0; i < cols; i++) {
@@ -857,82 +1095,101 @@ public class Library_Admin extends JFrame {
     }
 
     private void addBookDialog() {
-        JTextField bookID = new JTextField();
+        JTextField bookCode = new JTextField();
         JTextField title = new JTextField();
         JTextField author = new JTextField();
-        JTextField genre = new JTextField();
+        JTextField deweyClass = new JTextField();
         JTextField year = new JTextField();
-        JTextField stock = new JTextField();
+        JTextField quantity = new JTextField();
+
+        // Add some helper text for Dewey Classification
+        JLabel deweyHelper = new JLabel("<html><small>Examples: 004 (Computer Science), 796 (Sports), 300 (Social Sciences)</small></html>");
+        deweyHelper.setFont(new Font("Arial", Font.ITALIC, 10));
 
         Object[] fields = {
-            "Book ID:", bookID,
+            "Book Code:", bookCode,
             "Title:", title,
             "Author:", author,
-            "Genre:", genre,
+            "Dewey Class:", deweyClass,
+            deweyHelper,
             "Year:", year,
-            "Initial Stock:", stock
+            "Initial Quantity:", quantity
         };
 
         int result = JOptionPane.showConfirmDialog(this, fields, "Add Book", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
-            addBook(bookID.getText(), title.getText(), author.getText(), genre.getText(),
-                    year.getText(), stock.getText());
+            addBook(bookCode.getText(), title.getText(), author.getText(), deweyClass.getText(),
+                    year.getText(), quantity.getText());
         }
     }
 
-    private boolean addBook(String bookID, String title, String author, String genreName, String year, String stock) {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
+    private boolean addBook(String bookCode, String title, String author, String deweyClass, String year, String quantity) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
             conn.setAutoCommit(false);
 
             try {
-                // Step 1: Check if the BOOKID already exists in CATALOG or ARCHIVED_BOOKS
-                try (PreparedStatement checkIdStmt = conn.prepareStatement(
-                        "SELECT 1 FROM catalog WHERE BOOKID = ? UNION SELECT 1 FROM archived_books WHERE BOOKID = ?")) {
-                    checkIdStmt.setString(1, bookID);
-                    checkIdStmt.setString(2, bookID);
-                    try (ResultSet rs = checkIdStmt.executeQuery()) {
+                // Step 1: Check if the BookCode already exists in Books or ArchivedBooks
+                try (PreparedStatement checkCodeStmt = conn.prepareStatement(
+                        "SELECT 1 FROM Books WHERE BookCode = ? UNION SELECT 1 FROM ArchivedBooks WHERE OriginalBookCode = ?")) {
+                    checkCodeStmt.setString(1, bookCode);
+                    checkCodeStmt.setString(2, bookCode);
+                    try (ResultSet rs = checkCodeStmt.executeQuery()) {
                         if (rs.next()) {
-                            throw new SQLException("Book ID already exists in the library or archive.");
+                            throw new SQLException("Book Code already exists in the library or archive.");
                         }
                     }
                 }
 
-                // Step 2: Check if the book title already exists in catalog
-                try (PreparedStatement checkBookStmt = conn.prepareStatement(
-                        "SELECT 1 FROM catalog WHERE BOOKTITLE = ?")) {
-                    checkBookStmt.setString(1, title);
-                    try (ResultSet rs = checkBookStmt.executeQuery()) {
-                        if (rs.next()) {
-                            throw new SQLException("Book title already exists. Duplicate not allowed.");
-                        }
+                // Step 2: Validate Dewey Class format (should be numeric, typically 3 digits)
+                try {
+                    if (!deweyClass.matches("\\d{1,3}")) {
+                        throw new SQLException("Dewey Class must be numeric (1-3 digits). Examples: 004, 796, 300");
                     }
+                } catch (Exception e) {
+                    throw new SQLException("Invalid Dewey Class format: " + deweyClass);
                 }
 
-                // Step 3: Get or insert genre
-                int genreId = getOrInsertGenre(conn, genreName);
-
-                // Step 4: Insert into CATALOG
-                try (PreparedStatement stmt1 = conn.prepareStatement(
-                        "INSERT INTO catalog (BOOKID, BOOKTITLE, AUTHOR, GENRE, BOOKYR) VALUES (?, ?, ?, ?, ?)")) {
-                    stmt1.setString(1, bookID);
-                    stmt1.setString(2, title);
-                    stmt1.setString(3, author);
-                    stmt1.setInt(4, genreId);
-                    stmt1.setInt(5, Integer.parseInt(year));
-                    stmt1.executeUpdate();
+                // Step 3: Validate year
+                int bookYear;
+                try {
+                    bookYear = Integer.parseInt(year);
+                    if (bookYear < 1000 || bookYear > java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + 1) {
+                        throw new SQLException("Please enter a valid year.");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new SQLException("Year must be a valid number.");
                 }
 
-                // Step 5: Insert into STOCK
-                try (PreparedStatement stmt2 = conn.prepareStatement(
-                        "INSERT INTO stock (BOOKID, BOOKTITLE, STOCK) VALUES (?, ?, ?)")) {
-                    stmt2.setString(1, bookID);
-                    stmt2.setString(2, title);
-                    stmt2.setInt(3, Integer.parseInt(stock));
-                    stmt2.executeUpdate();
+                // Step 4: Validate quantity
+                int bookQuantity;
+                try {
+                    bookQuantity = Integer.parseInt(quantity);
+                    if (bookQuantity < 0) {
+                        throw new SQLException("Quantity cannot be negative.");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new SQLException("Quantity must be a valid number.");
+                }
+
+                // Step 5: Insert into Books table
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "INSERT INTO Books (BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity, DeweyClass) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    stmt.setString(1, bookCode);
+                    stmt.setString(2, title);
+                    stmt.setString(3, author);
+                    stmt.setInt(4, bookYear);
+                    stmt.setInt(5, bookQuantity);
+                    stmt.setInt(6, bookQuantity); // Initially, all books are available
+                    stmt.setString(7, deweyClass);
+                    stmt.executeUpdate();
                 }
 
                 conn.commit();
+                JOptionPane.showMessageDialog(this, "Book added successfully!");
+                loadBooks(); // Refresh the books table
                 return true;
+
             } catch (SQLException e) {
                 conn.rollback();
                 JOptionPane.showMessageDialog(this, "Insert Error: " + e.getMessage());
@@ -944,39 +1201,46 @@ public class Library_Admin extends JFrame {
         }
     }
 
-    private int getOrInsertGenre(Connection conn, String genreName) throws SQLException {
-        // Check if genre exists
-        try (PreparedStatement checkStmt = conn.prepareStatement("SELECT GENREID FROM genres WHERE GENRENAME = ?")) {
-            checkStmt.setString(1, genreName);
-            try (ResultSet rs = checkStmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("GENREID");
-                }
-            }
+// Helper method to get Dewey Class description (optional - for user reference)
+    private String getDeweyClassDescription(String deweyClass) {
+        int code;
+        try {
+            code = Integer.parseInt(deweyClass);
+        } catch (NumberFormatException e) {
+            return "Unknown";
         }
 
-        // Insert new genre
-        try (PreparedStatement insertStmt = conn.prepareStatement(
-                "INSERT INTO genres (GENRENAME) VALUES (?)", Statement.RETURN_GENERATED_KEYS)) {
-            insertStmt.setString(1, genreName);
-            insertStmt.executeUpdate();
-
-            try (ResultSet generatedKeys = insertStmt.getGeneratedKeys()) {
-                if (generatedKeys.next()) {
-                    return generatedKeys.getInt(1);
-                } else {
-                    throw new SQLException("Creating genre failed, no ID obtained.");
-                }
-            }
+        if (code >= 0 && code <= 99) {
+            return "Computer science, information, and general works";
+        } else if (code >= 100 && code <= 199) {
+            return "Philosophy and psychology";
+        } else if (code >= 200 && code <= 299) {
+            return "Religion";
+        } else if (code >= 300 && code <= 399) {
+            return "Social sciences";
+        } else if (code >= 400 && code <= 499) {
+            return "Language";
+        } else if (code >= 500 && code <= 599) {
+            return "Pure sciences";
+        } else if (code >= 600 && code <= 699) {
+            return "Technology and applied sciences";
+        } else if (code >= 700 && code <= 799) {
+            return "Arts and recreation";
+        } else if (code >= 800 && code <= 899) {
+            return "Literature";
+        } else if (code >= 900 && code <= 999) {
+            return "History and geography";
+        } else {
+            return "Unknown classification";
         }
     }
 
     private void addMultipleBooksDialog() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setPreferredSize(new Dimension(600, 300));
+        panel.setPreferredSize(new Dimension(700, 350));
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"Book ID", "Title", "Author", "Genre", "Year", "Stock"}, 0);
+                new String[]{"Book Code", "Title", "Author", "Dewey Class", "Year", "Quantity"}, 0);
 
         for (int i = 0; i < 5; i++) {
             model.addRow(new Object[]{"", "", "", "", "", ""});
@@ -985,9 +1249,14 @@ public class Library_Admin extends JFrame {
         JTable inputTable = new JTable(model);
         JScrollPane scrollPane = new JScrollPane(inputTable);
 
+        // Add some helpful information about Dewey Decimal System
+        JLabel infoLabel = new JLabel("<html><b>Dewey Classes:</b> 000-Computer Science, 100-Philosophy, 200-Religion, 300-Social Sciences, 400-Language, 500-Sciences, 600-Technology, 700-Arts, 800-Literature, 900-History</html>");
+        infoLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
         JButton addRowButton = new JButton("Add Row");
         addRowButton.addActionListener(e -> model.addRow(new Object[]{"", "", "", "", "", ""}));
 
+        panel.add(infoLabel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(addRowButton, BorderLayout.SOUTH);
 
@@ -1000,18 +1269,19 @@ public class Library_Admin extends JFrame {
             int totalCount = 0;
             List<String> skippedBooks = new ArrayList<>();
 
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
+            try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/LibraryDB", "username", "password")) {
                 conn.setAutoCommit(false);
 
                 for (int i = 0; i < model.getRowCount(); i++) {
-                    String bookID = (String) model.getValueAt(i, 0);
+                    String bookCode = (String) model.getValueAt(i, 0);
                     String title = (String) model.getValueAt(i, 1);
                     String author = (String) model.getValueAt(i, 2);
-                    String genreName = (String) model.getValueAt(i, 3);
+                    String deweyClass = (String) model.getValueAt(i, 3);
                     String year = (String) model.getValueAt(i, 4);
-                    String stock = (String) model.getValueAt(i, 5);
+                    String quantity = (String) model.getValueAt(i, 5);
 
-                    if (bookID == null || bookID.trim().isEmpty()
+                    // Skip empty rows
+                    if (bookCode == null || bookCode.trim().isEmpty()
                             || title == null || title.trim().isEmpty()) {
                         continue;
                     }
@@ -1019,83 +1289,121 @@ public class Library_Admin extends JFrame {
                     totalCount++;
 
                     try {
-                        // Check for existing BOOKID or BOOKTITLE
+                        // Check for existing BookCode or BookTitle in both Books and ArchivedBooks tables
                         try (PreparedStatement checkStmt = conn.prepareStatement(
-                                "SELECT 'catalog' AS source FROM catalog WHERE BOOKID = ? OR BOOKTITLE = ? "
-                                + "UNION SELECT 'archived_books' FROM archived_books WHERE BOOKID = ?")) {
-                            checkStmt.setString(1, bookID);
+                                "SELECT 'Books' AS source FROM Books WHERE BookCode = ? OR BookTitle = ? "
+                                + "UNION SELECT 'ArchivedBooks' FROM ArchivedBooks WHERE OriginalBookCode = ? OR BookTitle = ?")) {
+                            checkStmt.setString(1, bookCode);
                             checkStmt.setString(2, title);
-                            checkStmt.setString(3, bookID);
+                            checkStmt.setString(3, bookCode);
+                            checkStmt.setString(4, title);
                             try (ResultSet rs = checkStmt.executeQuery()) {
                                 if (rs.next()) {
-                                    skippedBooks.add("[" + bookID + "] \"" + title + "\" already exists in " + rs.getString("source"));
+                                    skippedBooks.add("[" + bookCode + "] \"" + title + "\" already exists in " + rs.getString("source"));
                                     continue;
                                 }
                             }
                         }
 
-                        int genreId = getOrInsertGenre(conn, genreName);
+                        // Validate Dewey Class format (should be 3 digits)
+                        if (deweyClass == null || deweyClass.trim().isEmpty()) {
+                            deweyClass = "000"; // Default to general works
+                        } else {
+                            deweyClass = deweyClass.trim();
+                            // Ensure it's a valid 3-digit Dewey class
+                            if (!deweyClass.matches("\\d{3}")) {
+                                skippedBooks.add("[" + bookCode + "] Invalid Dewey Class format. Use 3 digits (e.g., 004, 796)");
+                                continue;
+                            }
+                        }
 
-                        try (PreparedStatement stmt1 = conn.prepareStatement(
-                                "INSERT INTO CATALOG (BOOKID, BOOKTITLE, AUTHOR, GENRE, BOOKYR) VALUES (?, ?, ?, ?, ?)"); PreparedStatement stmt2 = conn.prepareStatement(
-                                        "INSERT INTO STOCK (BOOKID, BOOKTITLE, STOCK) VALUES (?, ?, ?)")) {
+                        // Parse and validate numeric fields
+                        int bookYear = 0;
+                        int bookQuantity = 0;
 
-                            stmt1.setString(1, bookID);
-                            stmt1.setString(2, title);
-                            stmt1.setString(3, author != null ? author : "");
-                            stmt1.setInt(4, genreId);
-                            stmt1.setInt(5, year != null && !year.trim().isEmpty() ? Integer.parseInt(year) : 0);
-                            stmt1.executeUpdate();
+                        try {
+                            if (year != null && !year.trim().isEmpty()) {
+                                bookYear = Integer.parseInt(year.trim());
+                            }
+                            if (quantity != null && !quantity.trim().isEmpty()) {
+                                bookQuantity = Integer.parseInt(quantity.trim());
+                                if (bookQuantity < 0) {
+                                    skippedBooks.add("[" + bookCode + "] Quantity cannot be negative");
+                                    continue;
+                                }
+                            }
+                        } catch (NumberFormatException e) {
+                            skippedBooks.add("[" + bookCode + "] Invalid number format for year or quantity");
+                            continue;
+                        }
 
-                            stmt2.setString(1, bookID);
-                            stmt2.setString(2, title);
-                            stmt2.setInt(3, stock != null && !stock.trim().isEmpty() ? Integer.parseInt(stock) : 0);
-                            stmt2.executeUpdate();
+                        // Insert into Books table
+                        try (PreparedStatement stmt = conn.prepareStatement(
+                                "INSERT INTO Books (BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity, DeweyClass) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?)")) {
 
+                            stmt.setString(1, bookCode.trim());
+                            stmt.setString(2, title.trim());
+                            stmt.setString(3, author != null && !author.trim().isEmpty() ? author.trim() : "Unknown");
+
+                            if (bookYear > 0) {
+                                stmt.setInt(4, bookYear);
+                            } else {
+                                stmt.setNull(4, java.sql.Types.INTEGER);
+                            }
+
+                            stmt.setInt(5, bookQuantity);
+                            stmt.setInt(6, bookQuantity); // Available quantity equals total quantity initially
+                            stmt.setString(7, deweyClass);
+
+                            stmt.executeUpdate();
                             successCount++;
                         }
 
                     } catch (SQLException e) {
-                        skippedBooks.add("Error adding [" + bookID + "]: " + e.getMessage());
+                        skippedBooks.add("Error adding [" + bookCode + "]: " + e.getMessage());
+                    } catch (Exception e) {
+                        skippedBooks.add("Unexpected error for [" + bookCode + "]: " + e.getMessage());
                     }
                 }
 
                 try {
                     conn.commit();
-                    loadBooks();
+                    loadBooks(); // Refresh the books display
 
                     StringBuilder msg = new StringBuilder("Added " + successCount + " of " + totalCount + " books successfully.");
                     if (!skippedBooks.isEmpty()) {
                         msg.append("\n\nSkipped entries:\n");
                         for (String skipped : skippedBooks) {
-                            msg.append(skipped).append("\n");
+                            msg.append("• ").append(skipped).append("\n");
                         }
 
                         JTextArea textArea = new JTextArea(msg.toString());
                         textArea.setEditable(false);
                         textArea.setLineWrap(true);
                         textArea.setWrapStyleWord(true);
+                        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
                         JScrollPane scrollPaneResult = new JScrollPane(textArea);
-                        scrollPaneResult.setPreferredSize(new Dimension(500, 300));
+                        scrollPaneResult.setPreferredSize(new Dimension(600, 400));
 
-                        JOptionPane.showMessageDialog(this, scrollPaneResult, "Add Book Result", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(this, scrollPaneResult, "Add Books Result", JOptionPane.INFORMATION_MESSAGE);
                     } else {
-                        JOptionPane.showMessageDialog(this, msg.toString(), "Add Book Result", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(this, msg.toString(), "Add Books Result", JOptionPane.INFORMATION_MESSAGE);
                     }
 
                 } catch (SQLException e) {
                     conn.rollback();
-                    JOptionPane.showMessageDialog(this, "Transaction Error: " + e.getMessage());
+                    JOptionPane.showMessageDialog(this, "Transaction Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
                 }
 
             } catch (SQLException e) {
-                JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage());
+                JOptionPane.showMessageDialog(this, "Database Connection Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
     private void deleteMultipleBooks() {
-        DefaultTableModel model = new DefaultTableModel(new String[]{"", "ID", "Title", "Author"}, 0) {
+        DefaultTableModel model = new DefaultTableModel(new String[]{"", "Book Code", "Title", "Author"}, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return columnIndex == 0 ? Boolean.class : String.class;
@@ -1107,14 +1415,14 @@ public class Library_Admin extends JFrame {
             }
         };
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT BOOKID, BOOKTITLE, AUTHOR FROM CATALOG")) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT BookCode, BookTitle, Author FROM Books")) {
 
             while (rs.next()) {
                 model.addRow(new Object[]{
                     false,
-                    rs.getString("BOOKID"),
-                    rs.getString("BOOKTITLE"),
-                    rs.getString("AUTHOR")
+                    rs.getString("BookCode"),
+                    rs.getString("BookTitle"),
+                    rs.getString("Author")
                 });
             }
 
@@ -1138,22 +1446,22 @@ public class Library_Admin extends JFrame {
                     JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
             if (result == JOptionPane.OK_OPTION) {
-                List<String> bookIdsToDelete = new ArrayList<>();
+                List<String> bookCodesToDelete = new ArrayList<>();
 
                 for (int i = 0; i < model.getRowCount(); i++) {
                     Boolean checked = (Boolean) model.getValueAt(i, 0);
                     if (checked != null && checked) {
-                        bookIdsToDelete.add((String) model.getValueAt(i, 1));
+                        bookCodesToDelete.add((String) model.getValueAt(i, 1));
                     }
                 }
 
-                if (bookIdsToDelete.isEmpty()) {
+                if (bookCodesToDelete.isEmpty()) {
                     JOptionPane.showMessageDialog(this, "No books selected for deletion.");
                     return;
                 }
 
                 int confirm = JOptionPane.showConfirmDialog(this,
-                        "Delete " + bookIdsToDelete.size() + " selected books?",
+                        "Delete " + bookCodesToDelete.size() + " selected books?",
                         "Confirm Delete", JOptionPane.YES_NO_OPTION);
 
                 if (confirm == JOptionPane.YES_OPTION) {
@@ -1161,20 +1469,40 @@ public class Library_Admin extends JFrame {
                         conn.setAutoCommit(false);
                         int deletedCount = 0;
 
+                        // Get current admin info (you may need to modify this based on your session management)
+                        long currentAdminId = getCurrentAdminId(); // Implement this method
+                        String currentAdminName = getCurrentAdminName(); // Implement this method
+
                         try (
                                 PreparedStatement archive = conn.prepareStatement(
-                                        "INSERT INTO archived_books (BOOKID, BOOKTITLE, AUTHOR, GENRENAME, BOOKYR, DELETED_AT) "
-                                        + "SELECT c.BOOKID, c.BOOKTITLE, c.AUTHOR, g.GENRENAME, c.BOOKYR, CURRENT_TIMESTAMP "
-                                        + "FROM catalog c JOIN genres g ON c.GENRE = g.GENREID WHERE c.BOOKID = ?"); PreparedStatement deleteStock = conn.prepareStatement("DELETE FROM STOCK WHERE BOOKID = ?"); PreparedStatement deleteCatalog = conn.prepareStatement("DELETE FROM CATALOG WHERE BOOKID = ?")) {
-                            for (String bookId : bookIdsToDelete) {
-                                archive.setString(1, bookId);
+                                        "INSERT INTO ArchivedBooks (OriginalBookCode, BookTitle, Author, BookYear, "
+                                        + "ArchivedQuantity, DeweyClass, ArchiveReason, AdminID, AdminName) "
+                                        + "SELECT BookCode, BookTitle, Author, BookYear, Quantity, DeweyClass, "
+                                        + "'Bulk deletion', ?, ? FROM Books WHERE BookCode = ?"); PreparedStatement deleteBook = conn.prepareStatement("DELETE FROM Books WHERE BookCode = ?")) {
+
+                            for (String bookCode : bookCodesToDelete) {
+                                // Check if book is currently borrowed
+                                try (PreparedStatement checkBorrowed = conn.prepareStatement(
+                                        "SELECT COUNT(*) FROM Borrowings WHERE BookCode = ? AND IsReturned = 'N'")) {
+                                    checkBorrowed.setString(1, bookCode);
+                                    ResultSet borrowedRs = checkBorrowed.executeQuery();
+                                    borrowedRs.next();
+                                    if (borrowedRs.getInt(1) > 0) {
+                                        JOptionPane.showMessageDialog(this,
+                                                "Cannot delete book " + bookCode + " - it is currently borrowed.");
+                                        continue;
+                                    }
+                                }
+
+                                // Archive the book
+                                archive.setLong(1, currentAdminId);
+                                archive.setString(2, currentAdminName);
+                                archive.setString(3, bookCode);
                                 archive.executeUpdate();
 
-                                deleteStock.setString(1, bookId);
-                                deleteStock.executeUpdate();
-
-                                deleteCatalog.setString(1, bookId);
-                                deleteCatalog.executeUpdate();
+                                // Delete the book
+                                deleteBook.setString(1, bookCode);
+                                deleteBook.executeUpdate();
 
                                 deletedCount++;
                             }
@@ -1184,7 +1512,11 @@ public class Library_Admin extends JFrame {
                         loadBooks();
                         JOptionPane.showMessageDialog(this, deletedCount + " books deleted successfully.");
                     } catch (SQLException e) {
-                        conn.rollback();
+                        try {
+                            conn.rollback();
+                        } catch (SQLException ex) {
+                            // Ignore rollback error
+                        }
                         JOptionPane.showMessageDialog(this, "Error deleting books: " + e.getMessage());
                     }
                 }
@@ -1198,37 +1530,63 @@ public class Library_Admin extends JFrame {
     private void addUserDialog() {
         JTextField userID = new JTextField();
         JTextField username = new JTextField();
+        JComboBox<String> userType = new JComboBox<>(new String[]{"Student", "Faculty"});
+        JTextField course = new JTextField();
+        JTextField department = new JTextField();
+        JTextField contactNumber = new JTextField();
+        JTextField email = new JTextField();
 
         Object[] fields = {
             "User ID (11 digits):", userID,
-            "Username:", username
+            "Username:", username,
+            "User Type:", userType,
+            "Course (for students):", course,
+            "Department:", department,
+            "Contact Number:", contactNumber,
+            "Email:", email
         };
 
         int result = JOptionPane.showConfirmDialog(this, fields, "Add User", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
             String idText = userID.getText().trim();
             String usernameText = username.getText().trim();
+            String selectedUserType = (String) userType.getSelectedItem();
+            String courseText = course.getText().trim();
+            String departmentText = department.getText().trim();
+            String contactText = contactNumber.getText().trim();
+            String emailText = email.getText().trim();
 
             if (!idText.matches("\\d{11}")) {
                 JOptionPane.showMessageDialog(this, "User ID must be exactly 11 digits.");
                 return;
             }
 
-            if (usernameText.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Username cannot be empty.");
+            if (usernameText.isEmpty() || departmentText.isEmpty() || emailText.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Username, Department, and Email cannot be empty.");
                 return;
             }
 
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO ACCOUNT (USERID, USERNAME, PASSWORD, USERTYPE) VALUES (?, ?, ?, 'user')"
+            try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO Users (UserID, Username, UserType, Course, Department, ContactNumber, Email) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?)"
             )) {
 
-                stmt.setString(1, idText);
+                stmt.setLong(1, Long.parseLong(idText));
                 stmt.setString(2, usernameText);
-                stmt.setString(3, "user123"); // Default password
+                stmt.setString(3, selectedUserType);
+                // Set course to null for Faculty
+                if ("Faculty".equals(selectedUserType) && courseText.isEmpty()) {
+                    stmt.setNull(4, java.sql.Types.VARCHAR);
+                } else {
+                    stmt.setString(4, courseText.isEmpty() ? null : courseText);
+                }
+                stmt.setString(5, departmentText);
+                stmt.setString(6, contactText.isEmpty() ? null : contactText);
+                stmt.setString(7, emailText);
 
                 stmt.executeUpdate();
                 loadUsers();
+                JOptionPane.showMessageDialog(this, "User added successfully.");
             } catch (SQLException e) {
                 JOptionPane.showMessageDialog(this, "Insert Error: " + e.getMessage());
             }
@@ -1243,10 +1601,10 @@ public class Library_Admin extends JFrame {
 
         boolean isNumeric = input.matches("\\d+");
         String query = isNumeric
-                ? "SELECT USERID, USERNAME, USERTYPE FROM ACCOUNT WHERE USERID = ?"
-                : "SELECT USERID, USERNAME, USERTYPE FROM ACCOUNT WHERE USERNAME LIKE ?";
+                ? "SELECT UserID, Username, UserType FROM Users WHERE UserID = ?"
+                : "SELECT UserID, Username, UserType FROM Users WHERE Username LIKE ?";
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement stmt = conn.prepareStatement(query)) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); PreparedStatement stmt = conn.prepareStatement(query)) {
 
             if (isNumeric) {
                 stmt.setLong(1, Long.parseLong(input));
@@ -1260,25 +1618,33 @@ public class Library_Admin extends JFrame {
                 return;
             }
 
-            String userID = rs.getString("USERID");
-            String username = rs.getString("USERNAME");
-            String userType = rs.getString("USERTYPE");
+            long userID = rs.getLong("UserID");
+            String username = rs.getString("Username");
+            String userType = rs.getString("UserType");
 
-            if ("admin".equalsIgnoreCase(userType)) {
-                JOptionPane.showMessageDialog(this, "Cannot delete an admin account.");
-                return;
+            // Check if user has unreturned books
+            try (PreparedStatement checkBorrowed = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM Borrowings WHERE BorrowerID = ? AND IsReturned = 'N'")) {
+                checkBorrowed.setLong(1, userID);
+                ResultSet borrowedRs = checkBorrowed.executeQuery();
+                borrowedRs.next();
+                if (borrowedRs.getInt(1) > 0) {
+                    JOptionPane.showMessageDialog(this,
+                            "Cannot delete user - they have unreturned books.");
+                    return;
+                }
             }
 
             int confirm = JOptionPane.showConfirmDialog(this,
-                    "Delete user:\nID: " + userID + "\nUsername: " + username,
+                    "Delete user:\nID: " + userID + "\nUsername: " + username + "\nType: " + userType,
                     "Confirm Delete", JOptionPane.YES_NO_OPTION);
 
             if (confirm == JOptionPane.YES_OPTION) {
-                try (PreparedStatement deleteStmt = conn.prepareStatement("DELETE FROM ACCOUNT WHERE USERID = ?")) {
-                    deleteStmt.setString(1, userID);
+                try (PreparedStatement deleteStmt = conn.prepareStatement("DELETE FROM Users WHERE UserID = ?")) {
+                    deleteStmt.setLong(1, userID);
                     deleteStmt.executeUpdate();
                     loadUsers();
-                    JOptionPane.showMessageDialog(this, "User deleted.");
+                    JOptionPane.showMessageDialog(this, "User deleted successfully.");
                 }
             }
 
@@ -1288,55 +1654,86 @@ public class Library_Admin extends JFrame {
     }
 
     private void addMultipleUsersDialog() {
-        // Create a panel with a table to input multiple users
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setPreferredSize(new Dimension(400, 300));
+        panel.setPreferredSize(new Dimension(600, 400));
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"User ID", "Username"}, 0);
+                new String[]{"User ID", "Username", "User Type", "Course", "Department", "Contact", "Email"}, 0);
 
         // Add 5 empty rows to start with
         for (int i = 0; i < 5; i++) {
-            model.addRow(new Object[]{"", ""});
+            model.addRow(new Object[]{"", "", "Student", "", "", "", ""});
         }
 
-        JTable inputTable = new JTable(model);
+        JTable inputTable = new JTable(model) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return true; // All cells are editable
+            }
+        };
+
+        // Set up combo box for UserType column
+        JComboBox<String> userTypeCombo = new JComboBox<>(new String[]{"Student", "Faculty"});
+        inputTable.getColumnModel().getColumn(2).setCellEditor(new DefaultCellEditor(userTypeCombo));
+
         JScrollPane scrollPane = new JScrollPane(inputTable);
 
         JButton addRowButton = new JButton("Add Row");
-        addRowButton.addActionListener(e -> model.addRow(new Object[]{"", ""}));
+        addRowButton.addActionListener(e -> model.addRow(new Object[]{"", "", "Student", "", "", "", ""}));
 
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(addRowButton, BorderLayout.SOUTH);
 
         int result = JOptionPane.showConfirmDialog(this, panel, "Add Multiple Users",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE);
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
         if (result == JOptionPane.OK_OPTION) {
             int successCount = 0;
             int totalCount = 0;
 
-            // Start a transaction for all additions
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252")) {
+            try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
                 conn.setAutoCommit(false);
 
                 for (int i = 0; i < model.getRowCount(); i++) {
                     String userID = (String) model.getValueAt(i, 0);
                     String username = (String) model.getValueAt(i, 1);
+                    String userType = (String) model.getValueAt(i, 2);
+                    String course = (String) model.getValueAt(i, 3);
+                    String department = (String) model.getValueAt(i, 4);
+                    String contact = (String) model.getValueAt(i, 5);
+                    String email = (String) model.getValueAt(i, 6);
 
                     // Skip empty rows
                     if (userID == null || userID.trim().isEmpty()
-                            || username == null || username.trim().isEmpty()) {
+                            || username == null || username.trim().isEmpty()
+                            || department == null || department.trim().isEmpty()
+                            || email == null || email.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    // Validate User ID format
+                    if (!userID.matches("\\d{11}")) {
+                        System.out.println("Skipping invalid User ID: " + userID);
                         continue;
                     }
 
                     totalCount++;
 
                     try (PreparedStatement stmt = conn.prepareStatement(
-                            "INSERT INTO ACCOUNT (USERID, USERNAME, USERTYPE) VALUES (?, ?, 'user')")) {
-                        stmt.setString(1, userID);
+                            "INSERT INTO Users (UserID, Username, UserType, Course, Department, ContactNumber, Email) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                        stmt.setLong(1, Long.parseLong(userID));
                         stmt.setString(2, username);
+                        stmt.setString(3, userType);
+                        // Handle course field (null for Faculty if empty)
+                        if ("Faculty".equals(userType) && (course == null || course.trim().isEmpty())) {
+                            stmt.setNull(4, java.sql.Types.VARCHAR);
+                        } else {
+                            stmt.setString(4, course != null && !course.trim().isEmpty() ? course : null);
+                        }
+                        stmt.setString(5, department);
+                        stmt.setString(6, contact != null && !contact.trim().isEmpty() ? contact : null);
+                        stmt.setString(7, email);
                         stmt.executeUpdate();
                         successCount++;
                     } catch (SQLException e) {
@@ -1361,8 +1758,7 @@ public class Library_Admin extends JFrame {
     }
 
     private void deleteMultipleUsers() {
-        // Create a multi-select dialog with all non-admin users
-        DefaultTableModel model = new DefaultTableModel(new String[]{"", "ID", "Username", "Type"}, 0) {
+        DefaultTableModel model = new DefaultTableModel(new String[]{"", "ID", "Username", "Type", "Department"}, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return columnIndex == 0 ? Boolean.class : String.class;
@@ -1370,49 +1766,31 @@ public class Library_Admin extends JFrame {
 
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 0; // Only the checkbox column is editable
+                return column == 0;
             }
         };
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT USERID, USERNAME, USERTYPE FROM ACCOUNT")) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT UserID, Username, UserType, Department FROM Users")) {
 
             while (rs.next()) {
-                String userType = rs.getString("USERTYPE");
-                // Don't allow selection of admin accounts
-                boolean isAdmin = "admin".equalsIgnoreCase(userType);
-
                 model.addRow(new Object[]{
-                    !isAdmin, // Checkbox only enabled for non-admin accounts
-                    rs.getString("USERID"),
-                    rs.getString("USERNAME"),
-                    userType
+                    false,
+                    rs.getLong("UserID"),
+                    rs.getString("Username"),
+                    rs.getString("UserType"),
+                    rs.getString("Department")
                 });
             }
 
-            JTable selectionTable = new JTable(model) {
-                @Override
-                public boolean isCellEditable(int row, int column) {
-                    // Disable checkbox for admin users
-                    if (column == 0) {
-                        String userType = (String) getValueAt(row, 3);
-                        return !"admin".equalsIgnoreCase(userType);
-                    }
-                    return false;
-                }
-            };
-
+            JTable selectionTable = new JTable(model);
             JScrollPane scrollPane = new JScrollPane(selectionTable);
-            scrollPane.setPreferredSize(new Dimension(500, 300));
+            scrollPane.setPreferredSize(new Dimension(600, 300));
 
-            // Add a "Select All Non-Admin" checkbox
-            JCheckBox selectAll = new JCheckBox("Select All Non-Admin Users");
+            JCheckBox selectAll = new JCheckBox("Select All Users");
             selectAll.addActionListener(e -> {
                 boolean selected = selectAll.isSelected();
                 for (int i = 0; i < model.getRowCount(); i++) {
-                    String userType = (String) model.getValueAt(i, 3);
-                    if (!"admin".equalsIgnoreCase(userType)) {
-                        model.setValueAt(selected, i, 0);
-                    }
+                    model.setValueAt(selected, i, 0);
                 }
             });
 
@@ -1421,19 +1799,15 @@ public class Library_Admin extends JFrame {
             panel.add(scrollPane, BorderLayout.CENTER);
 
             int result = JOptionPane.showConfirmDialog(this, panel, "Select Users to Delete",
-                    JOptionPane.OK_CANCEL_OPTION,
-                    JOptionPane.PLAIN_MESSAGE);
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
             if (result == JOptionPane.OK_OPTION) {
-                List<String> userIdsToDelete = new ArrayList<>();
+                List<Long> userIdsToDelete = new ArrayList<>();
 
                 for (int i = 0; i < model.getRowCount(); i++) {
                     Boolean checked = (Boolean) model.getValueAt(i, 0);
-                    String userType = (String) model.getValueAt(i, 3);
-
-                    // Double-check to make sure we're not deleting admin accounts
-                    if (checked && !"admin".equalsIgnoreCase(userType)) {
-                        userIdsToDelete.add((String) model.getValueAt(i, 1));
+                    if (checked != null && checked) {
+                        userIdsToDelete.add((Long) model.getValueAt(i, 1));
                     }
                 }
 
@@ -1450,13 +1824,26 @@ public class Library_Admin extends JFrame {
                     try {
                         conn.setAutoCommit(false);
                         int deletedCount = 0;
+                        int skippedCount = 0;
 
-                        for (String userId : userIdsToDelete) {
-                            try (PreparedStatement deleteStmt = conn.prepareStatement("DELETE FROM ACCOUNT WHERE USERID = ?")) {
-                                deleteStmt.setString(1, userId);
-                                int result2 = deleteStmt.executeUpdate();
+                        for (Long userId : userIdsToDelete) {
+                            // Check if user has unreturned books
+                            try (PreparedStatement checkBorrowed = conn.prepareStatement(
+                                    "SELECT COUNT(*) FROM Borrowings WHERE BorrowerID = ? AND IsReturned = 'N'")) {
+                                checkBorrowed.setLong(1, userId);
+                                ResultSet borrowedRs = checkBorrowed.executeQuery();
+                                borrowedRs.next();
+                                if (borrowedRs.getInt(1) > 0) {
+                                    skippedCount++;
+                                    continue; // Skip this user
+                                }
+                            }
 
-                                if (result2 > 0) {
+                            try (PreparedStatement deleteStmt = conn.prepareStatement("DELETE FROM Users WHERE UserID = ?")) {
+                                deleteStmt.setLong(1, userId);
+                                int deleteResult = deleteStmt.executeUpdate();
+
+                                if (deleteResult > 0) {
                                     deletedCount++;
                                 }
                             }
@@ -1464,7 +1851,11 @@ public class Library_Admin extends JFrame {
 
                         conn.commit();
                         loadUsers();
-                        JOptionPane.showMessageDialog(this, deletedCount + " users deleted successfully.");
+                        String message = deletedCount + " users deleted successfully.";
+                        if (skippedCount > 0) {
+                            message += " " + skippedCount + " users skipped (have unreturned books).";
+                        }
+                        JOptionPane.showMessageDialog(this, message);
                     } catch (SQLException e) {
                         try {
                             conn.rollback();
@@ -1482,15 +1873,14 @@ public class Library_Admin extends JFrame {
     }
 
     private void deleteSelected(JTable table, String tableName, String idCol) {
-        String input = JOptionPane.showInputDialog(this, "Enter Book ID or Title to delete:");
+        String input = JOptionPane.showInputDialog(this, "Enter Book Code or Title to delete:");
         if (input == null || input.trim().isEmpty()) {
             return;
         }
 
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/accountt", "root", "@Isekan09172713252"); PreparedStatement stmt = conn.prepareStatement(
-                "SELECT c.BOOKID, c.BOOKTITLE, c.AUTHOR, g.GENRENAME, c.BOOKYR "
-                + "FROM CATALOG c JOIN GENRES g ON c.GENRE = g.GENREID "
-                + "WHERE c.BOOKID = ? OR c.BOOKTITLE LIKE ?")) {
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); PreparedStatement stmt = conn.prepareStatement(
+                "SELECT BookCode, BookTitle, Author, DeweyClass, BookYear, Quantity "
+                + "FROM Books WHERE BookCode = ? OR BookTitle LIKE ?")) {
 
             stmt.setString(1, input);
             stmt.setString(2, "%" + input + "%");
@@ -1501,46 +1891,91 @@ public class Library_Admin extends JFrame {
                 return;
             }
 
-            String bookID = rs.getString("BOOKID");
-            String bookTitle = rs.getString("BOOKTITLE");
-            String author = rs.getString("AUTHOR");
-            String genreName = rs.getString("GENRENAME");
-            int bookYr = rs.getInt("BOOKYR");
+            String bookCode = rs.getString("BookCode");
+            String bookTitle = rs.getString("BookTitle");
+            String author = rs.getString("Author");
+            String deweyClass = rs.getString("DeweyClass");
+            int bookYear = rs.getInt("BookYear");
+            int quantity = rs.getInt("Quantity");
+
+            // Check if book is currently borrowed
+            try (PreparedStatement checkBorrowed = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM Borrowings WHERE BookCode = ? AND IsReturned = 'N'")) {
+                checkBorrowed.setString(1, bookCode);
+                ResultSet borrowedRs = checkBorrowed.executeQuery();
+                borrowedRs.next();
+                if (borrowedRs.getInt(1) > 0) {
+                    JOptionPane.showMessageDialog(this,
+                            "Cannot delete book - it is currently borrowed.");
+                    return;
+                }
+            }
 
             int confirm = JOptionPane.showConfirmDialog(this,
-                    "Delete book:\nID: " + bookID + "\nTitle: " + bookTitle,
+                    "Delete book:\nCode: " + bookCode + "\nTitle: " + bookTitle + "\nAuthor: " + author,
                     "Confirm Delete", JOptionPane.YES_NO_OPTION);
 
             if (confirm == JOptionPane.YES_OPTION) {
-                try (
-                        PreparedStatement deleteStock = conn.prepareStatement("DELETE FROM STOCK WHERE BOOKID = ?"); PreparedStatement deleteCatalog = conn.prepareStatement("DELETE FROM CATALOG WHERE BOOKID = ?"); PreparedStatement archiveStmt = conn.prepareStatement(
-                        "INSERT INTO ARCHIVED_BOOKS (BOOKID, BOOKTITLE, AUTHOR, GENRENAME, BOOKYR, DELETED_AT) "
-                        + "VALUES (?, ?, ?, ?, ?, NOW())")) {
+                try {
+                    conn.setAutoCommit(false);
 
-                    // Archive first
-                    archiveStmt.setString(1, bookID);
-                    archiveStmt.setString(2, bookTitle);
-                    archiveStmt.setString(3, author);
-                    archiveStmt.setString(4, genreName);
-                    archiveStmt.setInt(5, bookYr);
-                    archiveStmt.executeUpdate();
+                    // Get current admin info
+                    long currentAdminId = getCurrentAdminId();
+                    String currentAdminName = getCurrentAdminName();
 
-                    // Delete STOCK
-                    deleteStock.setString(1, bookID);
-                    deleteStock.executeUpdate();
+                    // Archive the book first
+                    try (PreparedStatement archiveStmt = conn.prepareStatement(
+                            "INSERT INTO ArchivedBooks (OriginalBookCode, BookTitle, Author, BookYear, "
+                            + "ArchivedQuantity, DeweyClass, ArchiveReason, AdminID, AdminName) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
-                    // Delete CATALOG
-                    deleteCatalog.setString(1, bookID);
-                    deleteCatalog.executeUpdate();
+                        archiveStmt.setString(1, bookCode);
+                        archiveStmt.setString(2, bookTitle);
+                        archiveStmt.setString(3, author);
+                        archiveStmt.setInt(4, bookYear);
+                        archiveStmt.setInt(5, quantity);
+                        archiveStmt.setString(6, deweyClass);
+                        archiveStmt.setString(7, "Single book deletion");
+                        archiveStmt.setLong(8, currentAdminId);
+                        archiveStmt.setString(9, currentAdminName);
+                        archiveStmt.executeUpdate();
+                    }
 
+                    // Delete the book
+                    try (PreparedStatement deleteBook = conn.prepareStatement("DELETE FROM Books WHERE BookCode = ?")) {
+                        deleteBook.setString(1, bookCode);
+                        deleteBook.executeUpdate();
+                    }
+
+                    conn.commit();
                     loadBooks();
-                    JOptionPane.showMessageDialog(this, "Book and stock deleted, archived in history.");
+                    JOptionPane.showMessageDialog(this, "Book deleted and archived successfully.");
+                } catch (SQLException e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException ex) {
+                        // Ignore rollback error
+                    }
+                    JOptionPane.showMessageDialog(this, "Delete Error: " + e.getMessage());
                 }
             }
 
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Search/Delete Error: " + e.getMessage());
         }
+    }
+
+// Helper methods that you'll need to implement based on your session management
+    private long getCurrentAdminId() {
+        // Implement this method to return current logged-in admin ID
+        // This could come from a session variable, user preferences, etc.
+        return 12345678901L; // Example default value
+    }
+
+    private String getCurrentAdminName() {
+        // Implement this method to return current logged-in admin name
+        // This could come from a session variable, user preferences, etc.
+        return "Default Admin"; // Example default value
     }
 
     public static void main(String[] args) {
