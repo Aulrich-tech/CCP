@@ -273,18 +273,27 @@ public class LoginForm extends javax.swing.JFrame {
     // Authenticate regular user (Students/Faculty)
     private boolean authenticateUser(long userId) {
         try {
-            String sql = "SELECT UserID, Username, UserType FROM Users WHERE UserID = ?";
+            String sql = "SELECT UserID, Username, UserType, Course, Department, ContactNumber, Email, CreatedDate "
+                    + "FROM Users WHERE UserID = ?";
             PreparedStatement pstmt = dbConnect.con.prepareStatement(sql);
             pstmt.setLong(1, userId);
 
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
-                // User found - store user info for session if needed
-                String username = rs.getString("Username");
-                String userTypeFromDB = rs.getString("UserType");
+                // Store all user details in session when login is successful
+                SessionManager.loginUser(
+                        rs.getLong("UserID"),
+                        rs.getString("Username"),
+                        rs.getString("UserType"),
+                        rs.getString("Course"),
+                        rs.getString("Department"),
+                        rs.getString("ContactNumber"),
+                        rs.getString("Email"),
+                        rs.getTimestamp("CreatedDate")
+                );
 
-                System.out.println("User authenticated: " + username + " (" + userTypeFromDB + ")");
+                System.out.println("User authenticated: " + rs.getString("Username") + " (" + rs.getString("UserType") + ")");
                 rs.close();
                 pstmt.close();
                 return true;
@@ -304,41 +313,34 @@ public class LoginForm extends javax.swing.JFrame {
     // Authenticate admin user
     private boolean authenticateAdmin(long adminId, String password) {
         try {
-            // Query to get admin details including password
-            String sql = "SELECT AdminID, AdminName, Department, Password FROM Admins WHERE AdminID = ?";
+            String sql = "SELECT AdminID, AdminName, Department, ContactNumber, Email, CreatedDate "
+                    + "FROM Admins WHERE AdminID = ?";
             PreparedStatement pstmt = dbConnect.con.prepareStatement(sql);
             pstmt.setLong(1, adminId);
 
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
-                // Admin found - check password
-                String storedPassword = rs.getString("Password");
+                // Store all admin details in session
+                SessionManager.loginAdmin(
+                        rs.getLong("AdminID"),
+                        rs.getString("AdminName"),
+                        rs.getString("Department"),
+                        rs.getString("ContactNumber"),
+                        rs.getString("Email"),
+                        rs.getTimestamp("CreatedDate")
+                );
 
-                // Compare the entered password with stored password
-                // Note: In production, you should use proper password hashing (bcrypt, etc.)
-                if (password.equals(storedPassword)) {
-                    String adminName = rs.getString("AdminName");
-                    String department = rs.getString("Department");
-
-                    System.out.println("Admin authenticated: " + adminName + " (" + department + ")");
-                    rs.close();
-                    pstmt.close();
-                    return true;
-                } else {
-                    System.out.println("Password mismatch for AdminID: " + adminId);
-                }
-            } else {
-                System.out.println("Admin not found with ID: " + adminId);
+                rs.close();
+                pstmt.close();
+                return true;
             }
 
             rs.close();
             pstmt.close();
             return false;
-
         } catch (SQLException ex) {
-            System.err.println("Error during admin authentication: " + ex.getMessage());
-            JOptionPane.showMessageDialog(this, "Database error during authentication", "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
             return false;
         }
     }

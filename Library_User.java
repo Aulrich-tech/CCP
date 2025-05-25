@@ -16,6 +16,17 @@ public class Library_User extends javax.swing.JFrame {
         setLocationRelativeTo(null);
         tbl_books.setRowHeight(25);
         loadBooks();
+        updateWelcomeLabel();
+    }
+
+    private void updateWelcomeLabel() {
+        if (SessionManager.isUserLoggedIn()) {
+            String userType = SessionManager.getCurrentUserType();
+            String username = SessionManager.getCurrentUsername();
+            lbl_title.setText("   Welcome " + userType + " - " + username + "!");
+        } else {
+            lbl_title.setText("   Welcome User!");
+        }
     }
 
     private void loadBooks() {
@@ -23,7 +34,6 @@ public class Library_User extends javax.swing.JFrame {
                 "SELECT BookCode, BookTitle, Author,BookYear, Quantity, AvailableQuantity "
                 + "FROM Books ORDER BY BookCode")) {
 
-            // Make sure your table model has the required columns
             DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
             model.setRowCount(0);
 
@@ -33,7 +43,7 @@ public class Library_User extends javax.swing.JFrame {
                     rs.getString("BookTitle"),
                     rs.getString("Author"),
                     rs.getInt("BookYear"),
-                    rs.getInt("AvailableQuantity") + "/" + rs.getInt("Quantity") // Show available/total
+                    rs.getInt("AvailableQuantity") + "/" + rs.getInt("Quantity")
                 });
             }
 
@@ -42,35 +52,477 @@ public class Library_User extends javax.swing.JFrame {
         }
     }
 
-    private void loadUsers() {
-        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
-                "SELECT UserID, Username, UserType, Course, Department, ContactNumber, Email "
-                + "FROM Users ORDER BY UserID")) {
+    private void showUserProfile() {
+        if (!SessionManager.isUserLoggedIn()) {
+            JOptionPane.showMessageDialog(this, "No user is currently logged in!", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            // Assuming you have a users table - adjust table model as needed
-            DefaultTableModel model = (DefaultTableModel) tbl_users.getModel(); // You'll need this table
-            model.setRowCount(0);
+        JDialog profileDialog = new JDialog(this, "User Profile", true);
+        profileDialog.setSize(900, 650);
+        profileDialog.setLocationRelativeTo(this);
+        profileDialog.setResizable(false);
+
+        // Main content panel with background
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(Color.WHITE);
+
+        // Header panel similar to login form style
+        JPanel headerPanel = new JPanel();
+        headerPanel.setBackground(new Color(255, 0, 0)); // Red background like login form
+        headerPanel.setBorder(BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.RAISED,
+                Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE));
+        headerPanel.setPreferredSize(new Dimension(900, 60));
+
+        JLabel headerLabel = new JLabel("User Profile - " + SessionManager.getCurrentUsername());
+        headerLabel.setFont(new Font("Stencil", Font.BOLD, 20));
+        headerLabel.setForeground(Color.WHITE);
+        headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        headerPanel.add(headerLabel);
+
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+
+        // Tabbed pane with custom styling
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        tabbedPane.setBackground(Color.WHITE);
+
+        // User Details Tab
+        JPanel userDetailsPanel = createStyledUserDetailsPanel();
+        tabbedPane.addTab("My Details", userDetailsPanel);
+
+        // Active Borrowings Tab
+        JPanel activeBorrowingsPanel = createStyledActiveBorrowingsPanel();
+        tabbedPane.addTab("Active Borrowings", activeBorrowingsPanel);
+
+        // Past Borrowings Tab
+        JPanel pastBorrowingsPanel = createStyledPastBorrowingsPanel();
+        tabbedPane.addTab("Borrowing History", pastBorrowingsPanel);
+
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
+
+        // Bottom panel with styled close button
+        JPanel bottomPanel = new JPanel(new FlowLayout());
+        bottomPanel.setBackground(Color.WHITE);
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+
+        JButton btnClose = new JButton("CLOSE");
+        btnClose.setBackground(Color.BLACK);
+        btnClose.setForeground(Color.WHITE);
+        btnClose.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnClose.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        btnClose.setPreferredSize(new Dimension(100, 30));
+        btnClose.addActionListener(e -> profileDialog.dispose());
+
+        bottomPanel.add(btnClose);
+        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
+
+        profileDialog.add(mainPanel);
+        profileDialog.setVisible(true);
+    }
+
+    private JPanel createStyledUserDetailsPanel() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(Color.WHITE);
+
+        // Create a centered panel for the form
+        JPanel centerPanel = new JPanel(new GridBagLayout());
+        centerPanel.setBackground(Color.WHITE);
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(30, 50, 30, 50));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(12, 15, 12, 15);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // User details with styling similar to login form
+        String[][] userDetails = {
+            {"User ID:", String.valueOf(SessionManager.getCurrentUserId())},
+            {"Username:", SessionManager.getCurrentUsername()},
+            {"User Type:", SessionManager.getCurrentUserType()},
+            {"Course:", SessionManager.getCurrentCourse() != null ? SessionManager.getCurrentCourse() : "N/A"},
+            {"Department:", SessionManager.getCurrentUserDepartment()},
+            {"Contact Number:", SessionManager.getCurrentUserContactNumber() != null ? SessionManager.getCurrentUserContactNumber() : "N/A"},
+            {"Email:", SessionManager.getCurrentUserEmail()},
+            {"Account Created:", SessionManager.getUserCreatedDate() != null ? SessionManager.getUserCreatedDate().toString().substring(0, 10) : "N/A"}
+        };
+
+        for (int i = 0; i < userDetails.length; i++) {
+            gbc.gridx = 0;
+            gbc.gridy = i;
+            gbc.gridwidth = 1;
+
+            JLabel label = new JLabel(userDetails[i][0]);
+            label.setFont(new Font("Segoe UI", Font.BOLD, 16));
+            label.setForeground(new Color(51, 51, 51));
+            centerPanel.add(label, gbc);
+
+            gbc.gridx = 1;
+            gbc.gridwidth = 2;
+
+            // Create styled text field for values (read-only)
+            JTextField valueField = new JTextField(userDetails[i][1]);
+            valueField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            valueField.setEditable(false);
+            valueField.setBorder(new javax.swing.border.LineBorder(new Color(153, 153, 153), 1, true));
+            valueField.setBackground(new Color(245, 245, 245));
+            valueField.setPreferredSize(new Dimension(300, 25));
+
+            centerPanel.add(valueField, gbc);
+        }
+
+        mainPanel.add(centerPanel, BorderLayout.CENTER);
+        return mainPanel;
+    }
+
+// Replace the existing createStyledActiveBorrowingsPanel method with this updated version
+    private JPanel createStyledActiveBorrowingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title label
+        JLabel titleLabel = new JLabel("Your Active Book Borrowings");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(new Color(51, 51, 51));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Create styled table for active borrowings with updated columns
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"Book Code", "Book Title", "Date Borrowed", "Due Date", "Status", "Surcharge"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable activeBorrowingsTable = new JTable(model);
+        activeBorrowingsTable.setRowHeight(30);
+        activeBorrowingsTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        activeBorrowingsTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        activeBorrowingsTable.getTableHeader().setBackground(new Color(240, 240, 240));
+        activeBorrowingsTable.setGridColor(new Color(200, 200, 200));
+        activeBorrowingsTable.setSelectionBackground(new Color(230, 230, 250));
+
+        // Load active borrowings
+        loadActiveBorrowings(model);
+
+        JScrollPane scrollPane = new JScrollPane(activeBorrowingsTable);
+        scrollPane.setBorder(new javax.swing.border.LineBorder(new Color(153, 153, 153), 1, true));
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add styled refresh button
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        JButton refreshBtn = new JButton("REFRESH");
+        refreshBtn.setBackground(new Color(255, 0, 0));
+        refreshBtn.setForeground(Color.WHITE);
+        refreshBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        refreshBtn.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        refreshBtn.setPreferredSize(new Dimension(100, 30));
+        refreshBtn.addActionListener(e -> loadActiveBorrowings(model));
+
+        buttonPanel.add(refreshBtn);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+// Replace the existing createStyledPastBorrowingsPanel method with this updated version
+    private JPanel createStyledPastBorrowingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title label
+        JLabel titleLabel = new JLabel("Your Borrowing History");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(new Color(51, 51, 51));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Create styled table for past borrowings with updated columns
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"Book Code", "Book Title", "Date Borrowed", "Due Date", "Date Returned", "Status", "Surcharge"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable pastBorrowingsTable = new JTable(model);
+        pastBorrowingsTable.setRowHeight(30);
+        pastBorrowingsTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        pastBorrowingsTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        pastBorrowingsTable.getTableHeader().setBackground(new Color(240, 240, 240));
+        pastBorrowingsTable.setGridColor(new Color(200, 200, 200));
+        pastBorrowingsTable.setSelectionBackground(new Color(230, 230, 250));
+
+        // Load past borrowings
+        loadPastBorrowings(model);
+
+        JScrollPane scrollPane = new JScrollPane(pastBorrowingsTable);
+        scrollPane.setBorder(new javax.swing.border.LineBorder(new Color(153, 153, 153), 1, true));
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add styled refresh button
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        JButton refreshBtn = new JButton("REFRESH");
+        refreshBtn.setBackground(new Color(255, 0, 0));
+        refreshBtn.setForeground(Color.WHITE);
+        refreshBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        refreshBtn.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
+        refreshBtn.setPreferredSize(new Dimension(100, 30));
+        refreshBtn.addActionListener(e -> loadPastBorrowings(model));
+
+        buttonPanel.add(refreshBtn);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createUserDetailsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // User details
+        String[][] userDetails = {
+            {"User ID:", String.valueOf(SessionManager.getCurrentUserId())},
+            {"Username:", SessionManager.getCurrentUsername()},
+            {"User Type:", SessionManager.getCurrentUserType()},
+            {"Course:", SessionManager.getCurrentCourse() != null ? SessionManager.getCurrentCourse() : "N/A"},
+            {"Department:", SessionManager.getCurrentUserDepartment()},
+            {"Contact Number:", SessionManager.getCurrentUserContactNumber() != null ? SessionManager.getCurrentUserContactNumber() : "N/A"},
+            {"Email:", SessionManager.getCurrentUserEmail()},
+            {"Account Created:", SessionManager.getUserCreatedDate() != null ? SessionManager.getUserCreatedDate().toString() : "N/A"}
+        };
+
+        for (int i = 0; i < userDetails.length; i++) {
+            gbc.gridx = 0;
+            gbc.gridy = i;
+            JLabel label = new JLabel(userDetails[i][0]);
+            label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            panel.add(label, gbc);
+
+            gbc.gridx = 1;
+            JLabel value = new JLabel(userDetails[i][1]);
+            value.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            panel.add(value, gbc);
+        }
+
+        return panel;
+    }
+
+    private JPanel createActiveBorrowingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        // Create table for active borrowings
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"Book Code", "Book Title", "Date Borrowed", "Due Date", "Days Left"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable activeBorrowingsTable = new JTable(model);
+        activeBorrowingsTable.setRowHeight(25);
+
+        // Load active borrowings
+        loadActiveBorrowings(model);
+
+        JScrollPane scrollPane = new JScrollPane(activeBorrowingsTable);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add refresh button
+        JButton refreshBtn = new JButton("Refresh");
+        refreshBtn.addActionListener(e -> loadActiveBorrowings(model));
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(refreshBtn);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createPastBorrowingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        // Create table for past borrowings
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"Book Code", "Book Title", "Date Borrowed", "Due Date", "Date Returned", "Days Overdue", "Surcharge"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable pastBorrowingsTable = new JTable(model);
+        pastBorrowingsTable.setRowHeight(25);
+
+        // Load past borrowings
+        loadPastBorrowings(model);
+
+        JScrollPane scrollPane = new JScrollPane(pastBorrowingsTable);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add refresh button
+        JButton refreshBtn = new JButton("Refresh");
+        refreshBtn.addActionListener(e -> loadPastBorrowings(model));
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(refreshBtn);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void loadActiveBorrowings(DefaultTableModel model) {
+        model.setRowCount(0);
+
+        if (!SessionManager.isUserLoggedIn()) {
+            return;
+        }
+
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
+            String sql = "SELECT b.BookCode, b.BookTitle, b.DateBorrowed, b.DueDate, b.BorrowingID "
+                    + "FROM Borrowings b WHERE b.BorrowerID = ? AND b.IsReturned = 'N' "
+                    + "ORDER BY b.DateBorrowed DESC";
+
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setLong(1, SessionManager.getCurrentUserId());
+
+            ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
+                Date dueDate = rs.getDate("DueDate");
+                Date currentDate = new Date(System.currentTimeMillis());
+                int borrowingId = rs.getInt("BorrowingID");
+
+                // Calculate days overdue
+                long diffInMillies = currentDate.getTime() - dueDate.getTime();
+                long daysOverdue = diffInMillies / (1000 * 60 * 60 * 24);
+
+                String status;
+                String surcharge = "₱0.00";
+
+                if (daysOverdue > 0) {
+                    // Book is overdue
+                    status = daysOverdue + " days overdue";
+
+                    // Check if there's an overdue record with surcharge
+                    String overdueSQL = "SELECT SurchargeAmount FROM Overdues WHERE BorrowingID = ?";
+                    try (PreparedStatement overdueStmt = conn.prepareStatement(overdueSQL)) {
+                        overdueStmt.setInt(1, borrowingId);
+                        ResultSet overdueRs = overdueStmt.executeQuery();
+                        if (overdueRs.next()) {
+                            double surchargeAmount = overdueRs.getDouble("SurchargeAmount");
+                            surcharge = "₱" + String.format("%.2f", surchargeAmount);
+                        } else {
+                            // Calculate surcharge if not in Overdues table yet
+                            // Assuming ₱5.00 per day overdue (adjust as needed)
+                            double calculatedSurcharge = daysOverdue * 5.00;
+                            surcharge = "₱" + String.format("%.2f", calculatedSurcharge);
+                        }
+                    }
+                } else if (daysOverdue == 0) {
+                    status = "Due today";
+                } else {
+                    // Book is not yet due
+                    long daysLeft = Math.abs(daysOverdue);
+                    status = daysLeft + " days left";
+                }
+
                 model.addRow(new Object[]{
-                    rs.getLong("UserID"),
-                    rs.getString("Username"),
-                    rs.getString("UserType"),
-                    rs.getString("Course") != null ? rs.getString("Course") : "N/A",
-                    rs.getString("Department"),
-                    rs.getString("ContactNumber") != null ? rs.getString("ContactNumber") : "N/A",
-                    rs.getString("Email")
+                    rs.getString("BookCode"),
+                    rs.getString("BookTitle"),
+                    rs.getDate("DateBorrowed"),
+                    dueDate,
+                    status,
+                    surcharge
                 });
             }
 
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Load Users Error: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Error loading active borrowings: " + e.getMessage());
+        }
+    }
+
+// Replace the existing loadPastBorrowings method with this updated version
+    private void loadPastBorrowings(DefaultTableModel model) {
+        model.setRowCount(0);
+
+        if (!SessionManager.isUserLoggedIn()) {
+            return;
+        }
+
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
+            String sql = "SELECT BookCode, BookTitle, DateBorrowed, DueDate, DateReturned, "
+                    + "DaysOverdue, SurchargeAmount, IsSurchargePaid "
+                    + "FROM ReturnedBooks WHERE BorrowerID = ? "
+                    + "ORDER BY DateReturned DESC";
+
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setLong(1, SessionManager.getCurrentUserId());
+
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                int daysOverdue = rs.getInt("DaysOverdue");
+                double surcharge = rs.getDouble("SurchargeAmount");
+                String isSurchargePaid = rs.getString("IsSurchargePaid");
+
+                String status;
+                String surchargeDisplay;
+
+                if (daysOverdue > 0) {
+                    // Book was returned late
+                    if (surcharge > 0) {
+                        if ("Y".equals(isSurchargePaid)) {
+                            status = "Returned/Paid (" + daysOverdue + " days late)";
+                            surchargeDisplay = "₱" + String.format("%.2f", surcharge) + " (Paid)";
+                        } else {
+                            status = "Returned/Unpaid (" + daysOverdue + " days late)";
+                            surchargeDisplay = "₱" + String.format("%.2f", surcharge) + " (Unpaid)";
+                        }
+                    } else {
+                        status = "Returned (" + daysOverdue + " days late)";
+                        surchargeDisplay = "₱0.00";
+                    }
+                } else {
+                    // Book was returned on time
+                    status = "Returned";
+                    surchargeDisplay = "₱0.00";
+                }
+
+                model.addRow(new Object[]{
+                    rs.getString("BookCode"),
+                    rs.getString("BookTitle"),
+                    rs.getDate("DateBorrowed"),
+                    rs.getDate("DueDate"),
+                    rs.getDate("DateReturned"),
+                    status,
+                    surchargeDisplay
+                });
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error loading borrowing history: " + e.getMessage());
         }
     }
 
     private void refreshTable(ArrayList<String[]> bookList) {
         DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
-        model.setRowCount(0); // Clear existing rows
+        model.setRowCount(0);
         for (String[] book : bookList) {
             model.addRow(book);
         }
@@ -111,11 +563,9 @@ public class Library_User extends javax.swing.JFrame {
             PreparedStatement stmt;
 
             if (columnName.equals("BookYear")) {
-                // Handle numeric field - convert to string for LIKE comparison
                 sql = "SELECT BookCode, BookTitle, Author,BookYear, Quantity, AvailableQuantity "
                         + "FROM Books WHERE CAST(" + columnName + " AS VARCHAR(20)) LIKE ?";
             } else {
-                // Regular string fields - use UPPER for case-insensitive search in Derby
                 sql = "SELECT BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity "
                         + "FROM Books WHERE UPPER(" + columnName + ") LIKE UPPER(?)";
             }
@@ -169,7 +619,6 @@ public class Library_User extends javax.swing.JFrame {
         JScrollPane scrollPane = new JScrollPane(textArea);
         dialog.add(scrollPane, BorderLayout.CENTER);
 
-        // Close button
         JButton btnClose = new JButton("Close");
         btnClose.addActionListener(e -> dialog.dispose());
 
@@ -189,17 +638,20 @@ public class Library_User extends javax.swing.JFrame {
         btn_search = new javax.swing.JButton();
         btn_clear = new javax.swing.JButton();
         btn_logout = new javax.swing.JButton();
+        btn_profile = new javax.swing.JButton(); // New profile button
         lbl_title = new javax.swing.JLabel();
         JPanel topPanel = new JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Library Management System");
-        //Dewey Information
+
+        // Dewey Information
         btn_deweyInfo = new javax.swing.JButton();
         btn_deweyInfo.setText("What is Dewey Class?");
         btn_deweyInfo.addActionListener(evt -> showDeweyInfo());
         JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         infoPanel.add(btn_deweyInfo);
+
         // Panel customization
         topPanel.setBackground(Color.RED);
         topPanel.setLayout(new BorderLayout());
@@ -208,7 +660,27 @@ public class Library_User extends javax.swing.JFrame {
         lbl_title.setForeground(Color.WHITE);
         lbl_title.setText("   Welcome User!");
         topPanel.add(lbl_title, BorderLayout.WEST);
-        topPanel.add(btn_logout, BorderLayout.EAST);
+
+        // Create right panel for buttons
+        JPanel rightPanel = new JPanel(new FlowLayout());
+        rightPanel.setBackground(Color.RED);
+
+        // Profile button
+        btn_profile.setText("Profile");
+        btn_profile.addActionListener(evt -> showUserProfile());
+        rightPanel.add(btn_profile);
+
+        // Logout button
+        btn_logout.setText("Log Out");
+        btn_logout.addActionListener(evt -> {
+            SessionManager.logout(); // Clear session
+            JOptionPane.showMessageDialog(null, "Logging out...");
+            new LoginForm().setVisible(true);
+            this.dispose();
+        });
+        rightPanel.add(btn_logout);
+
+        topPanel.add(rightPanel, BorderLayout.EAST);
 
         // Updated table model for new schema
         tbl_books = new JTable(new DefaultTableModel(
@@ -226,14 +698,7 @@ public class Library_User extends javax.swing.JFrame {
         btn_clear.addActionListener(evt -> {
             txt_search.setText("");
             cmb_searchBy.setSelectedIndex(0);
-            loadBooks(); // Reset to full catalog
-        });
-
-        btn_logout.setText("Log Out");
-        btn_logout.addActionListener(evt -> {
-            JOptionPane.showMessageDialog(null, "Logging out...");
-            new LoginForm().setVisible(true);
-            this.dispose();
+            loadBooks();
         });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -288,6 +753,7 @@ public class Library_User extends javax.swing.JFrame {
 
     // Variables declaration
     private javax.swing.JButton btn_logout;
+    private javax.swing.JButton btn_profile; // New profile button
     private javax.swing.JButton btn_search;
     private javax.swing.JButton btn_clear;
     private javax.swing.JComboBox<String> cmb_searchBy;

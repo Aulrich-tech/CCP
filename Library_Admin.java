@@ -69,37 +69,35 @@ public class Library_Admin extends JFrame {
 
         // BOOKS TAB - Updated for new schema
         // Corrected table model to match loadBooks() query (7 columns)
-tbl_books = new JTable(new DefaultTableModel(
-        new String[]{"Book Code", "Title", "Author", "Year", "Total Qty", "Available"}, 0));
-
+        tbl_books = new JTable(new DefaultTableModel(
+                new String[]{"Book Code", "Title", "Author", "Year", "Total Qty", "Available"}, 0));
 
 // Scroll pane for the book table
-JScrollPane scrollPane = new JScrollPane(tbl_books);
+        JScrollPane scrollPane = new JScrollPane(tbl_books);
 
 // Buttons for managing books
-btn_addBook = new JButton("Add Book");
-btn_deleteBook = new JButton("Delete Book");
-btn_addMultipleBooks = new JButton("Add Multiple Books");
-btn_deleteMultipleBooks = new JButton("Delete Multiple Books");
+        btn_addBook = new JButton("Add Book");
+        btn_deleteBook = new JButton("Delete Book");
+        btn_addMultipleBooks = new JButton("Add Multiple Books");
+        btn_deleteMultipleBooks = new JButton("Delete Multiple Books");
 
 // Action listeners
-btn_addBook.addActionListener(e -> addBookDialog());
-btn_deleteBook.addActionListener(e -> deleteSelected(tbl_books, "Books", "BookCode")); // Delete by BookCode from Books table
-btn_addMultipleBooks.addActionListener(e -> addMultipleBooksDialog());
-btn_deleteMultipleBooks.addActionListener(e -> deleteMultipleBooks());
-
+        btn_addBook.addActionListener(e -> addBookDialog());
+        btn_deleteBook.addActionListener(e -> deleteSelected(tbl_books, "Books", "BookCode")); // Delete by BookCode from Books table
+        btn_addMultipleBooks.addActionListener(e -> addMultipleBooksDialog());
+        btn_deleteMultipleBooks.addActionListener(e -> deleteMultipleBooks());
 
 // Panel for the buttons
-JPanel bookBtnPanel = new JPanel();
-bookBtnPanel.add(btn_addBook);
-bookBtnPanel.add(btn_deleteBook);
-bookBtnPanel.add(btn_addMultipleBooks);
-bookBtnPanel.add(btn_deleteMultipleBooks);
+        JPanel bookBtnPanel = new JPanel();
+        bookBtnPanel.add(btn_addBook);
+        bookBtnPanel.add(btn_deleteBook);
+        bookBtnPanel.add(btn_addMultipleBooks);
+        bookBtnPanel.add(btn_deleteMultipleBooks);
 
 // Main panel for displaying books and buttons
-JPanel bookPanel = new JPanel(new BorderLayout());
-bookPanel.add(scrollPane, BorderLayout.CENTER);
-bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
+        JPanel bookPanel = new JPanel(new BorderLayout());
+        bookPanel.add(scrollPane, BorderLayout.CENTER);
+        bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
 
         // USERS TAB - Updated for new schema
         lbl_userCount = new JLabel("Total Users: 0");
@@ -383,8 +381,8 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     }
 
                     // Get admin info (you'll need to pass this or get current admin)
-                    long adminID = 12345678901L; // Replace with actual admin ID
-                    String adminName = "Current Admin"; // Replace with actual admin name
+                    long adminID = SessionManager.getCurrentAdminId(); // Replace with actual admin ID
+                    String adminName = SessionManager.getCurrentAdminName(); // Replace with actual admin name
 
                     // Insert into Borrowings table
                     PreparedStatement insertStmt = conn.prepareStatement(
@@ -436,27 +434,21 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
             return;
         }
 
+        input = input.trim();
+
         try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
-            // First check active borrowings
-            String borrowQuery = "SELECT BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName "
-                    + "FROM Borrowings WHERE (BorrowerID = ? OR BookCode = ?) AND IsReturned = 'N'";
+
+            String borrowQuery = "SELECT * FROM Borrowings WHERE (BorrowerID = ? OR LOWER(BookCode) = LOWER(?)) AND TRIM(IsReturned) = 'N'";
 
             try (PreparedStatement stmt = conn.prepareStatement(borrowQuery)) {
-                // Try to parse as Long for BorrowerID, otherwise treat as BookCode
                 Long borrowerID = null;
                 try {
                     borrowerID = Long.parseLong(input);
-                } catch (NumberFormatException e) {
-                    // Input is not a number, treat as BookCode only
+                } catch (NumberFormatException ignored) {
                 }
 
-                if (borrowerID != null) {
-                    stmt.setLong(1, borrowerID);
-                    stmt.setString(2, input);
-                } else {
-                    stmt.setString(1, input); // This won't match BorrowerID but that's ok
-                    stmt.setString(2, input);
-                }
+                stmt.setLong(1, borrowerID != null ? borrowerID : -1);
+                stmt.setString(2, input);
 
                 ResultSet rs = stmt.executeQuery();
 
@@ -466,6 +458,10 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     String bookTitle = rs.getString("BookTitle");
                     long actualBorrowerID = rs.getLong("BorrowerID");
                     String borrowerName = rs.getString("BorrowerName");
+                    Date dateBorrowed = rs.getDate("DateBorrowed");
+                    Date dueDate = rs.getDate("DueDate");
+                    long adminID = rs.getLong("AdminID");
+                    String adminName = rs.getString("AdminName");
 
                     int confirm = JOptionPane.showConfirmDialog(this,
                             "Return book for:\nBorrower ID: " + actualBorrowerID
@@ -475,165 +471,173 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                             "Confirm Return", JOptionPane.YES_NO_OPTION);
 
                     if (confirm == JOptionPane.YES_OPTION) {
-                        // Update borrowing record as returned
-                        try (PreparedStatement updateStmt = conn.prepareStatement(
-                                "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
+                        Date currentDate = new Date(System.currentTimeMillis());
+                        long daysOverdue = Math.max((currentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24), 0);
+                        double surcharge = daysOverdue * 10.00;
 
-                            updateStmt.setInt(1, borrowingID);
-                            updateStmt.executeUpdate();
+                        try {
+                            conn.setAutoCommit(false);
 
-                            // Update book availability
+                            // Mark as returned
+                            try (PreparedStatement updateStmt = conn.prepareStatement(
+                                    "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
+                                updateStmt.setInt(1, borrowingID);
+                                updateStmt.executeUpdate();
+                            }
+
+                            // Update book quantity
                             try (PreparedStatement bookUpdateStmt = conn.prepareStatement(
                                     "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1 WHERE BookCode = ?")) {
                                 bookUpdateStmt.setString(1, bookCode);
                                 bookUpdateStmt.executeUpdate();
                             }
 
-                            // Insert into ReturnedBooks table
+                            // Insert into ReturnedBooks
                             try (PreparedStatement insertReturnStmt = conn.prepareStatement(
-                                    "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, "
-                                    + "BorrowerName, DateBorrowed, DueDate, DateReturned, DaysOverdue, "
-                                    + "SurchargeAmount, IsSurchargePaid, AdminID, AdminName) "
-                                    + "SELECT BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
-                                    + "DateBorrowed, DueDate, CURRENT_DATE, "
-                                    + "CASE WHEN CURRENT_DATE > DueDate THEN (CURRENT_DATE - DueDate) ELSE 0 END, "
-                                    + "CASE WHEN CURRENT_DATE > DueDate THEN (CURRENT_DATE - DueDate) * 5.00 ELSE 0.00 END, "
-                                    + "'Y', AdminID, AdminName FROM Borrowings WHERE BorrowingID = ?")) {
-
+                                    "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                    + "DateBorrowed, DueDate, DateReturned, DaysOverdue, SurchargeAmount, "
+                                    + "IsSurchargePaid, AdminID, AdminName) "
+                                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Y', ?, ?)")) {
                                 insertReturnStmt.setInt(1, borrowingID);
+                                insertReturnStmt.setString(2, bookCode);
+                                insertReturnStmt.setString(3, bookTitle);
+                                insertReturnStmt.setLong(4, actualBorrowerID);
+                                insertReturnStmt.setString(5, borrowerName);
+                                insertReturnStmt.setDate(6, dateBorrowed);
+                                insertReturnStmt.setDate(7, dueDate);
+                                insertReturnStmt.setDate(8, currentDate);
+                                insertReturnStmt.setLong(9, daysOverdue);
+                                insertReturnStmt.setDouble(10, surcharge);
+                                insertReturnStmt.setLong(11, adminID);
+                                insertReturnStmt.setString(12, adminName);
                                 insertReturnStmt.executeUpdate();
                             }
 
-                            JOptionPane.showMessageDialog(this, "Book returned successfully!");
-                            loadOverdue(); // Refresh your display
+                            conn.commit();
+                            JOptionPane.showMessageDialog(this, "Book returned successfully!\nOverdue: "
+                                    + daysOverdue + " days\nSurcharge: ₱" + String.format("%.2f", surcharge));
+                            loadOverdue();
+
+                        } catch (SQLException e) {
+                            conn.rollback();
+                            throw e;
+                        } finally {
+                            conn.setAutoCommit(true);
                         }
+                        return;
                     }
-                } else {
-                    // Check overdue records
-                    String overdueQuery = "SELECT OverdueID, BookCode, BookTitle, BorrowerID, BorrowerName, "
-                            + "SurchargeAmount, IsPaid FROM Overdues WHERE (BorrowerID = ? OR BookCode = ?) AND IsPaid = 'N'";
+                }
 
-                    try (PreparedStatement overdueStmt = conn.prepareStatement(overdueQuery)) {
-                        if (borrowerID != null) {
-                            overdueStmt.setLong(1, borrowerID);
-                            overdueStmt.setString(2, input);
-                        } else {
-                            overdueStmt.setString(1, input);
-                            overdueStmt.setString(2, input);
-                        }
+                // Check Overdues if not found in Borrowings
+                String overdueQuery = "SELECT * FROM Overdues WHERE (BorrowerID = ? OR LOWER(BookCode) = LOWER(?)) AND TRIM(IsPaid) = 'N'";
 
-                        ResultSet overdueRs = overdueStmt.executeQuery();
+                try (PreparedStatement overdueStmt = conn.prepareStatement(overdueQuery)) {
+                    overdueStmt.setLong(1, borrowerID != null ? borrowerID : -1);
+                    overdueStmt.setString(2, input);
 
-                        if (overdueRs.next()) {
-                            int overdueID = overdueRs.getInt("OverdueID");
-                            String bookCode = overdueRs.getString("BookCode");
-                            String bookTitle = overdueRs.getString("BookTitle");
-                            long actualBorrowerID = overdueRs.getLong("BorrowerID");
-                            String borrowerName = overdueRs.getString("BorrowerName");
-                            double surcharge = overdueRs.getDouble("SurchargeAmount");
+                    ResultSet overdueRs = overdueStmt.executeQuery();
 
-                            int confirm = JOptionPane.showConfirmDialog(this,
-                                    "Return overdue book for:\nBorrower ID: " + actualBorrowerID
-                                    + "\nName: " + borrowerName
-                                    + "\nBook Code: " + bookCode
-                                    + "\nBook Title: " + bookTitle
-                                    + "\nSurcharge: ₱" + String.format("%.2f", surcharge),
-                                    "Confirm Return", JOptionPane.YES_NO_OPTION);
+                    if (overdueRs.next()) {
+                        int overdueID = overdueRs.getInt("OverdueID");
+                        int borrowingID = overdueRs.getInt("BorrowingID");
+                        String bookCode = overdueRs.getString("BookCode");
+                        String bookTitle = overdueRs.getString("BookTitle");
+                        long actualBorrowerID = overdueRs.getLong("BorrowerID");
+                        String borrowerName = overdueRs.getString("BorrowerName");
+                        int daysOverdue = overdueRs.getInt("DaysOverdue");
+                        double surcharge = overdueRs.getDouble("SurchargeAmount");
 
-                            if (confirm == JOptionPane.YES_OPTION) {
+                        int confirm = JOptionPane.showConfirmDialog(this,
+                                "Return overdue book:\nBorrower: " + borrowerName
+                                + "\nBook: " + bookTitle
+                                + "\nSurcharge: ₱" + String.format("%.2f", surcharge),
+                                "Confirm Return & Payment", JOptionPane.YES_NO_OPTION);
+
+                        if (confirm == JOptionPane.YES_OPTION) {
+                            try {
+                                conn.setAutoCommit(false);
+
                                 // Mark overdue as paid
                                 try (PreparedStatement updateOverdueStmt = conn.prepareStatement(
                                         "UPDATE Overdues SET IsPaid = 'Y' WHERE OverdueID = ?")) {
-
                                     updateOverdueStmt.setInt(1, overdueID);
                                     updateOverdueStmt.executeUpdate();
-
-                                    // Update book availability
-                                    try (PreparedStatement bookUpdateStmt = conn.prepareStatement(
-                                            "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1 WHERE BookCode = ?")) {
-                                        bookUpdateStmt.setString(1, bookCode);
-                                        bookUpdateStmt.executeUpdate();
-                                    }
-
-                                    // Get the corresponding borrowing record and mark as returned
-                                    try (PreparedStatement getBorrowingStmt = conn.prepareStatement(
-                                            "SELECT BorrowingID FROM Overdues WHERE OverdueID = ?")) {
-                                        getBorrowingStmt.setInt(1, overdueID);
-                                        ResultSet borrowingRs = getBorrowingStmt.executeQuery();
-
-                                        if (borrowingRs.next()) {
-                                            int borrowingID = borrowingRs.getInt("BorrowingID");
-
-                                            // Update borrowing as returned
-                                            try (PreparedStatement updateBorrowingStmt = conn.prepareStatement(
-                                                    "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
-                                                updateBorrowingStmt.setInt(1, borrowingID);
-                                                updateBorrowingStmt.executeUpdate();
-                                            }
-
-                                            // Insert into ReturnedBooks
-                                            try (PreparedStatement insertReturnStmt = conn.prepareStatement(
-                                                    "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, "
-                                                    + "BorrowerName, DateBorrowed, DueDate, DateReturned, DaysOverdue, "
-                                                    + "SurchargeAmount, IsSurchargePaid, AdminID, AdminName) "
-                                                    + "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
-                                                    + "b.DateBorrowed, b.DueDate, CURRENT_DATE, o.DaysOverdue, "
-                                                    + "o.SurchargeAmount, 'Y', b.AdminID, b.AdminName "
-                                                    + "FROM Borrowings b, Overdues o WHERE b.BorrowingID = ? AND o.OverdueID = ?")) {
-
-                                                insertReturnStmt.setInt(1, borrowingID);
-                                                insertReturnStmt.setInt(2, overdueID);
-                                                insertReturnStmt.executeUpdate();
-                                            }
-                                        }
-                                    }
-
-                                    JOptionPane.showMessageDialog(this,
-                                            "Book returned successfully! Surcharge: ₱" + String.format("%.2f", surcharge));
-
-                                    // Display "Paid" confirmation popup
-                                    JOptionPane.showMessageDialog(this,
-                                            "Payment of ₱" + String.format("%.2f", surcharge) + " received.\nStatus: PAID",
-                                            "Surcharge Paid", JOptionPane.INFORMATION_MESSAGE);
-
-                                    loadOverdue();
                                 }
+
+                                // Update book availability
+                                try (PreparedStatement bookUpdateStmt = conn.prepareStatement(
+                                        "UPDATE Books SET AvailableQuantity = AvailableQuantity + 1 WHERE BookCode = ?")) {
+                                    bookUpdateStmt.setString(1, bookCode);
+                                    bookUpdateStmt.executeUpdate();
+                                }
+
+                                // Mark borrowing as returned
+                                try (PreparedStatement updateBorrowingStmt = conn.prepareStatement(
+                                        "UPDATE Borrowings SET IsReturned = 'Y' WHERE BorrowingID = ?")) {
+                                    updateBorrowingStmt.setInt(1, borrowingID);
+                                    updateBorrowingStmt.executeUpdate();
+                                }
+
+                                // Insert into ReturnedBooks
+                                try (PreparedStatement insertReturnStmt = conn.prepareStatement(
+                                        "INSERT INTO ReturnedBooks (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                        + "DateBorrowed, DueDate, DateReturned, DaysOverdue, SurchargeAmount, "
+                                        + "IsSurchargePaid, AdminID, AdminName) "
+                                        + "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
+                                        + "b.DateBorrowed, b.DueDate, CURRENT_DATE, o.DaysOverdue, o.SurchargeAmount, 'Y', b.AdminID, b.AdminName "
+                                        + "FROM Borrowings b JOIN Overdues o ON b.BorrowingID = o.BorrowingID WHERE o.OverdueID = ?")) {
+                                    insertReturnStmt.setInt(1, overdueID);
+                                    insertReturnStmt.executeUpdate();
+                                }
+
+                                conn.commit();
+                                JOptionPane.showMessageDialog(this, "Overdue return and surcharge recorded.\nAmount Paid: ₱"
+                                        + String.format("%.2f", surcharge));
+                                loadOverdue();
+
+                            } catch (SQLException e) {
+                                conn.rollback();
+                                throw e;
+                            } finally {
+                                conn.setAutoCommit(true);
                             }
-                        } else {
-                            JOptionPane.showMessageDialog(this, "No borrowing record found for this ID or Book Code.");
                         }
+                    } else {
+                        JOptionPane.showMessageDialog(this, "No active borrowing or unpaid overdue found.");
                     }
                 }
+
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 
     private void markAsOverdueDialog() {
-        // Ask for borrower ID or book code
         String input = JOptionPane.showInputDialog(this, "Enter Borrower ID or Book Code:");
         if (input == null || input.trim().isEmpty()) {
             return;
         }
 
+        input = input.trim();
+
         try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
-            // Find in Borrowings table (only non-returned books)
             String query = "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
                     + "b.BorrowerType, b.DateBorrowed, b.DueDate, u.ContactNumber, u.Email "
                     + "FROM Borrowings b "
                     + "JOIN Users u ON b.BorrowerID = u.UserID "
-                    + "WHERE b.IsReturned = 'N' AND (b.BorrowerID = ? OR b.BookCode = ?)";
+                    + "WHERE TRIM(b.IsReturned) = 'N' AND "
+                    + "(b.BorrowerID = ? OR LOWER(b.BookCode) = LOWER(?))";
 
             try (PreparedStatement stmt = conn.prepareStatement(query)) {
-                // Try to parse as BorrowerID first
                 try {
                     long borrowerID = Long.parseLong(input);
                     stmt.setLong(1, borrowerID);
-                    stmt.setString(2, input);
-                } catch (NumberFormatException ex) {
-                    // If not a number, search by BookCode only
-                    stmt.setLong(1, 0); // Invalid BorrowerID to ensure no match
+                    stmt.setString(2, input); // In case input is also a valid book code
+                } catch (NumberFormatException e) {
+                    // Not a number, so we just use book code and give an invalid borrower ID
+                    stmt.setLong(1, -1); // Ensure it won’t match any real BorrowerID
                     stmt.setString(2, input);
                 }
 
@@ -651,7 +655,6 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     String contactNo = rs.getString("ContactNumber");
                     String email = rs.getString("Email");
 
-                    // Calculate number of days overdue
                     long currentTimeMillis = System.currentTimeMillis();
                     java.sql.Date currentDate = new java.sql.Date(currentTimeMillis);
 
@@ -663,7 +666,6 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                         return;
                     }
 
-                    // Calculate surcharge (10 pesos per day)
                     double surcharge = daysOverdue * 10.0;
 
                     int confirm = JOptionPane.showConfirmDialog(this,
@@ -676,35 +678,28 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                             "Confirm Overdue", JOptionPane.YES_NO_OPTION);
 
                     if (confirm == JOptionPane.YES_OPTION) {
-                        // Begin transaction
                         conn.setAutoCommit(false);
 
-                        try {
-                            // Insert into Overdues table
-                            try (PreparedStatement insertStmt = conn.prepareStatement(
-                                    "INSERT INTO Overdues (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
-                                    + "DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid) "
-                                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {
+                        try (PreparedStatement insertStmt = conn.prepareStatement(
+                                "INSERT INTO Overdues (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
+                                + "DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {
 
-                                insertStmt.setInt(1, borrowingID);
-                                insertStmt.setString(2, bookCode);
-                                insertStmt.setString(3, bookTitle);
-                                insertStmt.setLong(4, borrowerID);
-                                insertStmt.setString(5, borrowerName);
-                                insertStmt.setDate(6, borrowedDate);
-                                insertStmt.setDate(7, dueDate);
-                                insertStmt.setInt(8, daysOverdue);
-                                insertStmt.setBigDecimal(9, new java.math.BigDecimal(surcharge));
+                            insertStmt.setInt(1, borrowingID);
+                            insertStmt.setString(2, bookCode);
+                            insertStmt.setString(3, bookTitle);
+                            insertStmt.setLong(4, borrowerID);
+                            insertStmt.setString(5, borrowerName);
+                            insertStmt.setDate(6, borrowedDate);
+                            insertStmt.setDate(7, dueDate);
+                            insertStmt.setInt(8, daysOverdue);
+                            insertStmt.setDouble(9, surcharge);
 
-                                insertStmt.executeUpdate();
-                            }
-
-                            // Note: We don't delete from Borrowings table anymore
-                            // The book remains as borrowed but is now also tracked as overdue
+                            insertStmt.executeUpdate();
                             conn.commit();
-                            JOptionPane.showMessageDialog(this, "Book marked as overdue with surcharge: ₱" + String.format("%.2f", surcharge));
-                            loadOverdue(); // Refresh the table
 
+                            JOptionPane.showMessageDialog(this, "Book marked as overdue with surcharge: ₱" + String.format("%.2f", surcharge));
+                            loadOverdue();
                         } catch (SQLException ex) {
                             conn.rollback();
                             throw ex;
@@ -714,7 +709,7 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     }
 
                 } else {
-                    JOptionPane.showMessageDialog(this, "No active borrowing record found for this ID.");
+                    JOptionPane.showMessageDialog(this, "No active borrowing record found for this ID or Book Code.");
                 }
             }
         } catch (SQLException ex) {
@@ -723,9 +718,14 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
     }
 
     private void markMultipleOverdueDialog() {
-        // Create a multi-select dialog with all currently borrowed books
-        DefaultTableModel model = new DefaultTableModel(
-                new String[]{"", "Borrower ID", "Borrower Name", "Book Code", "Book Title", "Date Borrowed", "Due Date", "Days Overdue"}, 0) {
+        // Define column headers including hidden columns
+        String[] columnNames = {
+            "", "Borrower ID", "Borrower Name", "Book Code", "Book Title",
+            "Date Borrowed", "Due Date", "Days Overdue",
+            "Borrowing ID", "Contact No", "Email"
+        };
+
+        DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return columnIndex == 0 ? Boolean.class : Object.class;
@@ -733,83 +733,64 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
 
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 0; // Only the checkbox column is editable
+                return column == 0; // Only checkbox is editable
             }
         };
 
         try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised")) {
-            // Get current date
-            long currentTimeMillis = System.currentTimeMillis();
-            java.sql.Date currentDate = new java.sql.Date(currentTimeMillis);
+            java.sql.Date currentDate = new java.sql.Date(System.currentTimeMillis());
 
-            // Query borrowed books that are not returned and not already in overdue
-            String query = "SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName, "
-                    + "b.BorrowerType, b.DateBorrowed, b.DueDate, u.ContactNumber, u.Email "
-                    + "FROM Borrowings b "
-                    + "JOIN Users u ON b.BorrowerID = u.UserID "
-                    + "WHERE b.IsReturned = 'N' "
-                    + "AND NOT EXISTS (SELECT 1 FROM Overdues o WHERE o.BorrowingID = b.BorrowingID)";
+            String query = """
+            SELECT b.BorrowingID, b.BookCode, b.BookTitle, b.BorrowerID, b.BorrowerName,
+                   b.BorrowerType, b.DateBorrowed, b.DueDate, u.ContactNumber, u.Email
+            FROM Borrowings b
+            JOIN Users u ON b.BorrowerID = u.UserID
+            WHERE b.IsReturned = 'N'
+              AND NOT EXISTS (
+                  SELECT 1 FROM Overdues o WHERE o.BorrowingID = b.BorrowingID
+              )
+        """;
 
             try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
-
                 while (rs.next()) {
-                    int borrowingID = rs.getInt("BorrowingID");
-                    String bookCode = rs.getString("BookCode");
-                    String bookTitle = rs.getString("BookTitle");
-                    long borrowerID = rs.getLong("BorrowerID");
-                    String borrowerName = rs.getString("BorrowerName");
-                    String borrowerType = rs.getString("BorrowerType");
-                    java.sql.Date borrowedDate = rs.getDate("DateBorrowed");
                     java.sql.Date dueDate = rs.getDate("DueDate");
-                    String contactNo = rs.getString("ContactNumber");
-                    String email = rs.getString("Email");
+                    long diff = currentDate.getTime() - dueDate.getTime();
+                    int daysOverdue = (int) (diff / (1000 * 60 * 60 * 24));
 
-                    // Calculate days overdue
-                    long diffInMillis = currentDate.getTime() - dueDate.getTime();
-                    int daysOverdue = (int) (diffInMillis / (1000 * 60 * 60 * 24));
-
-                    // Only add overdue books to the table
                     if (daysOverdue > 0) {
                         model.addRow(new Object[]{
-                            false, // Checkbox initially unchecked
-                            borrowerID,
-                            borrowerName,
-                            bookCode,
-                            bookTitle,
-                            borrowedDate,
+                            false,
+                            rs.getLong("BorrowerID"),
+                            rs.getString("BorrowerName"),
+                            rs.getString("BookCode"),
+                            rs.getString("BookTitle"),
+                            rs.getDate("DateBorrowed"),
                             dueDate,
                             daysOverdue,
-                            borrowingID, // Hidden column for reference
-                            contactNo, // Hidden column for contact
-                            email // Hidden column for email
+                            rs.getInt("BorrowingID"),
+                            rs.getString("ContactNumber"),
+                            rs.getString("Email")
                         });
                     }
                 }
 
-                // If no overdue books found
                 if (model.getRowCount() == 0) {
                     JOptionPane.showMessageDialog(this, "No overdue books found.");
                     return;
                 }
 
-                // Create table with visible columns only
                 JTable selectionTable = new JTable(model);
 
-                // Hide the extra columns (borrowingID, contactNo, email)
-                selectionTable.getColumnModel().getColumn(8).setMinWidth(0);
-                selectionTable.getColumnModel().getColumn(8).setMaxWidth(0);
-                selectionTable.getColumnModel().getColumn(8).setWidth(0);
-                selectionTable.getColumnModel().getColumn(9).setMinWidth(0);
-                selectionTable.getColumnModel().getColumn(9).setMaxWidth(0);
-                selectionTable.getColumnModel().getColumn(9).setWidth(0);
-                selectionTable.getColumnModel().getColumn(10).setMinWidth(0);
-                selectionTable.getColumnModel().getColumn(10).setMaxWidth(0);
-                selectionTable.getColumnModel().getColumn(10).setWidth(0);
+                // Hide columns 8–10 (Borrowing ID, Contact No, Email)
+                for (int i = 8; i <= 10; i++) {
+                    selectionTable.getColumnModel().getColumn(i).setMinWidth(0);
+                    selectionTable.getColumnModel().getColumn(i).setMaxWidth(0);
+                    selectionTable.getColumnModel().getColumn(i).setWidth(0);
+                }
 
                 JScrollPane scrollPane = new JScrollPane(selectionTable);
                 scrollPane.setPreferredSize(new Dimension(800, 350));
 
-                // Add a "Select All" checkbox
                 JCheckBox selectAll = new JCheckBox("Select All");
                 selectAll.addActionListener(e -> {
                     boolean selected = selectAll.isSelected();
@@ -818,21 +799,19 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     }
                 });
 
-                // Add summary label
                 JLabel summaryLabel = new JLabel("Found " + model.getRowCount() + " overdue books");
                 summaryLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
-
-                JPanel panel = new JPanel(new BorderLayout());
-                panel.add(summaryLabel, BorderLayout.NORTH);
 
                 JPanel topPanel = new JPanel(new BorderLayout());
                 topPanel.add(summaryLabel, BorderLayout.WEST);
                 topPanel.add(selectAll, BorderLayout.EAST);
 
+                JPanel panel = new JPanel(new BorderLayout());
                 panel.add(topPanel, BorderLayout.NORTH);
                 panel.add(scrollPane, BorderLayout.CENTER);
 
-                int result = JOptionPane.showConfirmDialog(this, panel, "Select Books to Mark as Overdue",
+                int result = JOptionPane.showConfirmDialog(this, panel,
+                        "Select Books to Mark as Overdue",
                         JOptionPane.OK_CANCEL_OPTION,
                         JOptionPane.PLAIN_MESSAGE);
 
@@ -840,8 +819,7 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     List<Integer> selectedRows = new ArrayList<>();
 
                     for (int i = 0; i < model.getRowCount(); i++) {
-                        Boolean checked = (Boolean) model.getValueAt(i, 0);
-                        if (checked) {
+                        if ((Boolean) model.getValueAt(i, 0)) {
                             selectedRows.add(i);
                         }
                     }
@@ -851,52 +829,41 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                         return;
                     }
 
-                    // Calculate total surcharge
-                    double totalSurcharge = 0;
-                    for (int rowIndex : selectedRows) {
-                        int daysOverdue = (int) model.getValueAt(rowIndex, 7);
-                        totalSurcharge += daysOverdue * 10.0;
-                    }
+                    // Compute total surcharge
+                    double totalSurcharge = selectedRows.stream()
+                            .mapToInt(row -> (int) model.getValueAt(row, 7))
+                            .mapToDouble(daysOverdue -> daysOverdue * 10.0)
+                            .sum();
 
                     int confirm = JOptionPane.showConfirmDialog(this,
                             "Mark " + selectedRows.size() + " books as overdue?\n"
                             + "Total surcharge: ₱" + String.format("%.2f", totalSurcharge),
-                            "Confirm Mark as Overdue", JOptionPane.YES_NO_OPTION);
+                            "Confirm Mark as Overdue",
+                            JOptionPane.YES_NO_OPTION);
 
                     if (confirm == JOptionPane.YES_OPTION) {
                         conn.setAutoCommit(false);
                         int successCount = 0;
 
                         try {
-                            for (int rowIndex : selectedRows) {
-                                int borrowingID = (int) model.getValueAt(rowIndex, 8); // Hidden column
-                                String bookCode = (String) model.getValueAt(rowIndex, 3);
-                                String bookTitle = (String) model.getValueAt(rowIndex, 4);
-                                long borrowerID = (long) model.getValueAt(rowIndex, 1);
-                                String borrowerName = (String) model.getValueAt(rowIndex, 2);
-                                java.sql.Date borrowedDate = (java.sql.Date) model.getValueAt(rowIndex, 5);
-                                java.sql.Date dueDate = (java.sql.Date) model.getValueAt(rowIndex, 6);
-                                int daysOverdue = (int) model.getValueAt(rowIndex, 7);
-                                String contactNo = (String) model.getValueAt(rowIndex, 9); // Hidden column
-                                String email = (String) model.getValueAt(rowIndex, 10);    // Hidden column
-
-                                double surcharge = daysOverdue * 10.0; // 10 pesos per day
-
-                                // Insert into Overdues table
-                                try (PreparedStatement insertStmt = conn.prepareStatement(
-                                        "INSERT INTO Overdues (BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName, "
-                                        + "DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid) "
-                                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {
-
-                                    insertStmt.setInt(1, borrowingID);
-                                    insertStmt.setString(2, bookCode);
-                                    insertStmt.setString(3, bookTitle);
-                                    insertStmt.setLong(4, borrowerID);
-                                    insertStmt.setString(5, borrowerName);
-                                    insertStmt.setDate(6, borrowedDate);
-                                    insertStmt.setDate(7, dueDate);
-                                    insertStmt.setInt(8, daysOverdue);
-                                    insertStmt.setBigDecimal(9, new java.math.BigDecimal(surcharge));
+                            for (int row : selectedRows) {
+                                try (PreparedStatement insertStmt = conn.prepareStatement("""
+                                INSERT INTO Overdues (
+                                    BorrowingID, BookCode, BookTitle, BorrowerID, BorrowerName,
+                                    DateBorrowed, DueDate, DaysOverdue, SurchargeAmount, IsPaid
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+                            """)) {
+                                    int daysOverdue = (int) model.getValueAt(row, 7);
+                                    double surcharge = daysOverdue * 10.0;
+                                    insertStmt.setInt(1, (int) model.getValueAt(row, 8));
+                                    insertStmt.setString(2, (String) model.getValueAt(row, 3));
+                                    insertStmt.setString(3, (String) model.getValueAt(row, 4));
+                                    insertStmt.setLong(4, (long) model.getValueAt(row, 1));
+                                    insertStmt.setString(5, (String) model.getValueAt(row, 2));
+                                    insertStmt.setDate(6, (java.sql.Date) model.getValueAt(row, 5));
+                                    insertStmt.setDate(7, (java.sql.Date) model.getValueAt(row, 6));
+                                    insertStmt.setInt(8, (int) model.getValueAt(row, 7));
+                                    insertStmt.setBigDecimal(9, new java.math.BigDecimal((int) model.getValueAt(row, 7) * 10.0));
 
                                     insertStmt.executeUpdate();
                                     successCount++;
@@ -917,6 +884,7 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                         }
                     }
                 }
+
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
@@ -924,42 +892,40 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
     }
 
     private void loadBooks() {
-    try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); 
-         Statement stmt = conn.createStatement(); 
-         ResultSet rs = stmt.executeQuery(
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
                 "SELECT BookCode, BookTitle, Author, BookYear, Quantity, AvailableQuantity "
                 + "FROM Books "
                 + "ORDER BY BookCode")) {
-        
-        DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
-        model.setRowCount(0);
-        
-        while (rs.next()) {
-            model.addRow(new Object[]{
-                rs.getString("BookCode"),
-                rs.getString("BookTitle"),
-                rs.getString("Author"),
-                rs.getObject("BookYear"), // Use getObject to handle NULL years properly
-                rs.getInt("Quantity"),
-                rs.getInt("AvailableQuantity")
-            });
+
+            DefaultTableModel model = (DefaultTableModel) tbl_books.getModel();
+            model.setRowCount(0);
+
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getString("BookCode"),
+                    rs.getString("BookTitle"),
+                    rs.getString("Author"),
+                    rs.getObject("BookYear"), // Use getObject to handle NULL years properly
+                    rs.getInt("Quantity"),
+                    rs.getInt("AvailableQuantity")
+                });
+            }
+
+            // Optional: Show count of loaded books
+            int rowCount = model.getRowCount();
+            if (rowCount == 0) {
+                // If no books found, you might want to show a message or placeholder
+                System.out.println("No books found in the database.");
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error loading books from database: " + e.getMessage(),
+                    "Database Error",
+                    JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace(); // For debugging purposes
         }
-        
-        // Optional: Show count of loaded books
-        int rowCount = model.getRowCount();
-        if (rowCount == 0) {
-            // If no books found, you might want to show a message or placeholder
-            System.out.println("No books found in the database.");
-        }
-        
-    } catch (SQLException e) {
-        JOptionPane.showMessageDialog(this, 
-            "Error loading books from database: " + e.getMessage(),
-            "Database Error", 
-            JOptionPane.ERROR_MESSAGE);
-        e.printStackTrace(); // For debugging purposes
     }
-}
 
     private void loadUsers() {
         // Load user data with updated query for new schema
@@ -1046,34 +1012,33 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
     }
 
     private void loadArchivedBooks() {
-    try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); 
-         Statement stmt = conn.createStatement(); 
-         ResultSet rs = stmt.executeQuery(
+        try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(
                 "SELECT ArchiveID, OriginalBookCode, BookTitle, Author, "
                 + "BookYear, ArchivedQuantity, ArchiveReason, AdminName, ArchiveDate "
                 + "FROM ArchivedBooks "
                 + "ORDER BY ArchiveDate DESC")) {
-        
-        DefaultTableModel model = (DefaultTableModel) tbl_archived.getModel();
-        model.setRowCount(0);
-        
-        while (rs.next()) {
-            model.addRow(new Object[]{
-                rs.getInt("ArchiveID"),              // Column 0: Archive ID
-                rs.getString("OriginalBookCode"),    // Column 1: Original Book Code
-                rs.getString("BookTitle"),           // Column 2: Title
-                rs.getString("Author"),              // Column 3: Author
-                rs.getObject("BookYear"),            // Column 4: Year
-                rs.getInt("ArchivedQuantity"),       // Column 5: Archived Quantity
-                rs.getString("ArchiveReason"),       // Column 6: Archive Reason
-                rs.getString("AdminName"),           // Column 7: Admin Name (NEW COLUMN)
-                rs.getTimestamp("ArchiveDate")       // Column 8: Archive Date
-            });
+
+            DefaultTableModel model = (DefaultTableModel) tbl_archived.getModel();
+            model.setRowCount(0);
+
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt("ArchiveID"), // Column 0: Archive ID
+                    rs.getString("OriginalBookCode"), // Column 1: Original Book Code
+                    rs.getString("BookTitle"), // Column 2: Title
+                    rs.getString("Author"), // Column 3: Author
+                    rs.getObject("BookYear"), // Column 4: Year
+                    rs.getInt("ArchivedQuantity"), // Column 5: Archived Quantity
+                    rs.getString("ArchiveReason"), // Column 6: Archive Reason
+                    rs.getString("AdminName"), // Column 7: Admin Name (NEW COLUMN)
+                    rs.getTimestamp("ArchiveDate") // Column 8: Archive Date
+                });
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Load Archived Books Error: " + e.getMessage());
         }
-    } catch (SQLException e) {
-        JOptionPane.showMessageDialog(this, "Load Archived Books Error: " + e.getMessage());
     }
-}
+
     private void loadTableData(String query, JTable table) {
         try (Connection conn = DriverManager.getConnection("jdbc:derby://localhost:1527/Revised"); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
 
@@ -1201,39 +1166,6 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
         }
     }
 
-// Helper method to get Dewey Class description (optional - for user reference)
-    private String getDeweyClassDescription(String deweyClass) {
-        int code;
-        try {
-            code = Integer.parseInt(deweyClass);
-        } catch (NumberFormatException e) {
-            return "Unknown";
-        }
-
-        if (code >= 0 && code <= 99) {
-            return "Computer science, information, and general works";
-        } else if (code >= 100 && code <= 199) {
-            return "Philosophy and psychology";
-        } else if (code >= 200 && code <= 299) {
-            return "Religion";
-        } else if (code >= 300 && code <= 399) {
-            return "Social sciences";
-        } else if (code >= 400 && code <= 499) {
-            return "Language";
-        } else if (code >= 500 && code <= 599) {
-            return "Pure sciences";
-        } else if (code >= 600 && code <= 699) {
-            return "Technology and applied sciences";
-        } else if (code >= 700 && code <= 799) {
-            return "Arts and recreation";
-        } else if (code >= 800 && code <= 899) {
-            return "Literature";
-        } else if (code >= 900 && code <= 999) {
-            return "History and geography";
-        } else {
-            return "Unknown classification";
-        }
-    }
 
     private void addMultipleBooksDialog() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -1470,8 +1402,8 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                         int deletedCount = 0;
 
                         // Get current admin info (you may need to modify this based on your session management)
-                        long currentAdminId = getCurrentAdminId(); // Implement this method
-                        String currentAdminName = getCurrentAdminName(); // Implement this method
+                        long currentAdminId = SessionManager.getCurrentAdminId(); // Implement this method
+                        String currentAdminName = SessionManager.getCurrentAdminName(); // Implement this method
 
                         try (
                                 PreparedStatement archive = conn.prepareStatement(
@@ -1920,8 +1852,8 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
                     conn.setAutoCommit(false);
 
                     // Get current admin info
-                    long currentAdminId = getCurrentAdminId();
-                    String currentAdminName = getCurrentAdminName();
+                    long currentAdminId = SessionManager.getCurrentAdminId();
+                    String currentAdminName = SessionManager.getCurrentAdminName();
 
                     // Archive the book first
                     try (PreparedStatement archiveStmt = conn.prepareStatement(
@@ -1963,19 +1895,6 @@ bookPanel.add(bookBtnPanel, BorderLayout.SOUTH);
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Search/Delete Error: " + e.getMessage());
         }
-    }
-
-// Helper methods that you'll need to implement based on your session management
-    private long getCurrentAdminId() {
-        // Implement this method to return current logged-in admin ID
-        // This could come from a session variable, user preferences, etc.
-        return 12345678901L; // Example default value
-    }
-
-    private String getCurrentAdminName() {
-        // Implement this method to return current logged-in admin name
-        // This could come from a session variable, user preferences, etc.
-        return "Default Admin"; // Example default value
     }
 
     public static void main(String[] args) {
